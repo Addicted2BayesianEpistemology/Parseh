@@ -27,10 +27,10 @@
             "alt": "Noto Nastaliq Urdu", "alt_options": "Language=Urdu",
             "hyphen": null},
     "passes": [
-      {"key": "vocal",  "label": "1", "title": "the vowelled attempt"},
-      {"key": "chunks", "label": "2", "title": "chunks and glosses"},
-      {"key": "bare",   "label": "3", "title": "bare naskh"},
-      {"key": "alt",    "label": "4", "title": "nastaliq", "kind": "font"}
+      {"key": "vocal",  "name": "With vowels", "label": "1", "title": "the sentence with its vowels, to read on its own"},
+      {"key": "chunks", "name": "Chunks",      "label": "2", "title": "the sentence cut into chunks, each with its gloss beside it"},
+      {"key": "bare",   "name": "Plain",       "label": "3", "title": "the sentence as Persian is ordinarily printed, with no marks"},
+      {"key": "alt",    "name": "Nastaliq",    "label": "4", "title": "the same sentence in nastaliq script", "kind": "font"}
     ],
     "anki": {"field": "Persian", "vocab_model": 1724563200001, "opposites_model": 1724563200002,
              "vocab_name": "Frank YouTube Persian", "opposites_name": "Frank Persian Opposites"},
@@ -64,9 +64,9 @@
             "alt": null, "alt_options": null,
             "hyphen": null},
     "passes": [
-      {"key": "vocal",  "label": "1", "title": "the vowelled attempt"},
-      {"key": "chunks", "label": "2", "title": "chunks and glosses"},
-      {"key": "bare",   "label": "3", "title": "unvowelled, as Arabic is written"}
+      {"key": "vocal",  "name": "With vowels", "label": "1", "title": "the sentence with its vowels, to read on its own"},
+      {"key": "chunks", "name": "Chunks",      "label": "2", "title": "the sentence cut into chunks, each with its gloss beside it"},
+      {"key": "bare",   "name": "Plain",       "label": "3", "title": "the sentence as Arabic is ordinarily printed, with no marks"}
     ],
     "anki": {"field": "Arabic", "vocab_model": 1724563200011, "opposites_model": 1724563200012,
              "vocab_name": "Frank Arabic", "opposites_name": "Frank Arabic Opposites"},
@@ -99,8 +99,8 @@
             "alt": null, "alt_options": null,
             "hyphen": "italian"},
     "passes": [
-      {"key": "vocal",  "label": "1", "title": "the sentence"},
-      {"key": "chunks", "label": "2", "title": "chunks and glosses"}
+      {"key": "vocal",  "name": "Sentence", "label": "1", "title": "the sentence, to read on its own"},
+      {"key": "chunks", "name": "Chunks",   "label": "2", "title": "the sentence cut into chunks, each with its gloss beside it"}
     ],
     "anki": {"field": "Italian", "vocab_model": 1724563200021, "opposites_model": 1724563200022,
              "vocab_name": "Frank Italian", "opposites_name": "Frank Italian Opposites"},
@@ -134,11 +134,11 @@
             "alt": "Noto Sans CJK JP", "alt_options": "",
             "hyphen": null},
     "passes": [
-      {"key": "vocal",  "label": "1", "title": "with furigana over each word"},
-      {"key": "aloud",  "label": "2", "title": "the reading alone, in kana"},
-      {"key": "chunks", "label": "3", "title": "chunks and glosses"},
-      {"key": "bare",   "label": "4", "title": "plain, as Japanese is written"},
-      {"key": "alt",    "label": "5", "title": "vertical (tategaki)", "kind": "vertical"}
+      {"key": "vocal",  "name": "Furigana",  "label": "1", "title": "with furigana over each word"},
+      {"key": "aloud",  "name": "Kana only", "label": "2", "title": "the reading alone, in kana"},
+      {"key": "chunks", "name": "Chunks",    "label": "3", "title": "the sentence cut into chunks, each with its gloss beside it"},
+      {"key": "bare",   "name": "Plain",     "label": "4", "title": "plain, as Japanese is written"},
+      {"key": "alt",    "name": "Vertical",  "label": "5", "title": "the sentence in vertical columns (tategaki)", "kind": "vertical"}
     ],
     "anki": {"field": "Japanese", "vocab_model": 1724563200031, "opposites_model": 1724563200032,
              "vocab_name": "Frank Japanese", "opposites_name": "Frank Japanese Opposites"},
@@ -197,13 +197,15 @@
     "passes": [
       {
         "key": "vocal",
+        "name": "Sentence",
         "label": "1",
-        "title": "the sentence"
+        "title": "the sentence, to read on its own"
       },
       {
         "key": "chunks",
+        "name": "Chunks",
         "label": "2",
-        "title": "chunks and glosses"
+        "title": "the sentence cut into chunks, each with its gloss beside it"
       }
     ],
     "anki": {
@@ -277,13 +279,15 @@
     "passes": [
       {
         "key": "vocal",
+        "name": "Sentence",
         "label": "1",
-        "title": "the sentence"
+        "title": "the sentence, to read on its own"
       },
       {
         "key": "chunks",
+        "name": "Chunks",
         "label": "2",
-        "title": "chunks and glosses"
+        "title": "the sentence cut into chunks, each with its gloss beside it"
       }
     ],
     "anki": {
@@ -357,13 +361,15 @@
     "passes": [
       {
         "key": "vocal",
+        "name": "Sentence",
         "label": "1",
-        "title": "the sentence"
+        "title": "the sentence, to read on its own"
       },
       {
         "key": "chunks",
+        "name": "Chunks",
         "label": "2",
-        "title": "chunks and glosses"
+        "title": "the sentence cut into chunks, each with its gloss beside it"
       }
     ],
     "anki": {
@@ -435,13 +441,15 @@
     "passes": [
       {
         "key": "vocal",
+        "name": "Sentence",
         "label": "1",
-        "title": "the sentence"
+        "title": "the sentence, to read on its own"
       },
       {
         "key": "chunks",
+        "name": "Chunks",
         "label": "2",
-        "title": "chunks and glosses"
+        "title": "the sentence cut into chunks, each with its gloss beside it"
       }
     ],
     "anki": {
@@ -519,13 +527,15 @@
     "passes": [
       {
         "key": "vocal",
+        "name": "Sentence",
         "label": "1",
-        "title": "the sentence"
+        "title": "the sentence, to read on its own"
       },
       {
         "key": "chunks",
+        "name": "Chunks",
         "label": "2",
-        "title": "chunks and glosses"
+        "title": "the sentence cut into chunks, each with its gloss beside it"
       }
     ],
     "anki": {
@@ -600,13 +610,15 @@
     "passes": [
       {
         "key": "vocal",
+        "name": "Sentence",
         "label": "1",
-        "title": "the sentence"
+        "title": "the sentence, to read on its own"
       },
       {
         "key": "chunks",
+        "name": "Chunks",
         "label": "2",
-        "title": "chunks and glosses"
+        "title": "the sentence cut into chunks, each with its gloss beside it"
       }
     ],
     "anki": {
@@ -673,28 +685,33 @@
     "passes": [
       {
         "key": "vocal",
+        "name": "Pinyin",
         "label": "1",
         "title": "with pinyin over each word"
       },
       {
         "key": "aloud",
+        "name": "Pinyin only",
         "label": "2",
         "title": "the reading alone, in pinyin"
       },
       {
         "key": "chunks",
+        "name": "Chunks",
         "label": "3",
-        "title": "chunks and glosses"
+        "title": "the sentence cut into chunks, each with its gloss beside it"
       },
       {
         "key": "bare",
+        "name": "Plain",
         "label": "4",
         "title": "plain, as Chinese is written"
       },
       {
         "key": "alt",
+        "name": "Vertical",
         "label": "5",
-        "title": "vertical",
+        "title": "the sentence in vertical columns (tategaki)",
         "kind": "vertical"
       }
     ],

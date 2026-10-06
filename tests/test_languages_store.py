@@ -170,6 +170,56 @@ class Reading(Tree):
         self.assertTrue(langs["ko"].mine)
         self.assertEqual(problems, [])
 
+    # --- the levels' names (a0.5.0): every pass has one, and the person's
+    # rows obey the same rule as Parseh's own -- with one kindness
+    def unnamed(self, row):
+        for p in row["passes"]:
+            del p["name"]
+        return row
+
+    def test_a_person_row_from_before_names_is_named_and_not_dropped(self):
+        """An older newlang.py wrote rows without names, and an update must not
+        take away a language somebody added: it is read with the default
+        names, and the file -- theirs -- is not rewritten."""
+        row = self.unnamed(korean())
+        languages.write_store({"ko": row}, self.personal)
+        langs, problems = self.load()
+        self.assertEqual(problems, [])
+        self.assertEqual([(p["key"], p["name"]) for p in langs["ko"].passes],
+                         [("vocal", "Sentence"), ("chunks", "Chunks")])
+        self.assertEqual(languages.read_store(self.personal)["ko"], row)
+
+    def test_a_person_row_with_a_bad_name_is_left_out_and_says_why(self):
+        for bad, why in (("x" * 13, "pass 'vocal' is named 'xxxxxxxxxxxxx', which is 13 characters"),
+                         ("  ", "pass 'vocal' has no \"name\"")):
+            with self.subTest(name=bad):
+                row = korean()
+                row["passes"][0]["name"] = bad
+                languages.write_store({"ko": row}, self.personal)
+                langs, problems = self.load()
+                self.assertNotIn("ko", langs)
+                self.assertEqual([c for c, _ in problems], ["ko"])
+                self.assertIn("Korean (ko): " + why, problems[0][1])
+                self.assertEqual(list(langs), CODES)          # nothing else is stopped
+
+    def test_a_person_row_naming_some_passes_and_not_others_is_left_out(self):
+        row = korean()
+        del row["passes"][1]["name"]
+        languages.write_store({"ko": row}, self.personal)
+        langs, problems = self.load()
+        self.assertNotIn("ko", langs)
+        self.assertIn("pass 'chunks' has no \"name\"", problems[0][1])
+
+    def test_a_row_of_parseh_s_own_without_a_name_is_refused_at_import(self):
+        """A fault in lib/languages.json is a fault of the release: it raises,
+        as it always has, and the message names the language and the pass."""
+        raw = json.loads(SHIPPED_TEXT)
+        del raw["it"]["passes"][0]["name"]
+        write(self.shipped, json.dumps(raw, ensure_ascii=False, indent=2))
+        with self.assertRaises(ValueError) as cm:
+            self.load()
+        self.assertIn("Italian (it): pass 'vocal' has no \"name\"", str(cm.exception))
+
     def test_a_table_from_before_shipped_is_all_parseh_s(self):
         """No _shipped: which rows are whose cannot be told, so none is
         called the person's and none is moved."""
@@ -329,6 +379,117 @@ class Adding(Tree):
         self.assertEqual(rc, 0, out[-2000:])
         rc, out, _ = self.run_newlang()
         self.assertIn("added on this machine", out)
+
+    # --- the levels' names, written by the generator and refused by its check
+    def dry_row(self, *argv):
+        """The row `newlang.py <argv> --dry-run` would add, as data."""
+        rc, out, err = self.run_newlang(*(list(argv) + ["--dry-run"]))
+        self.assertEqual(rc, 0, out + err)
+        text = out[out.index("\n{") + 1:out.index("\n--dry-run")]
+        return list(json.loads(text).values())[0]
+
+    def test_a_new_language_carries_names(self):
+        rc, out, err = self.run_newlang(*self.KO)
+        self.assertEqual(rc, 0, out + err)
+        row = languages.read_store(self.personal)["ko"]
+        self.assertEqual([(p["key"], p["name"], p["label"], p["title"]) for p in row["passes"]],
+                         [("vocal", "Sentence", "1", "the sentence, to read on its own"),
+                          ("chunks", "Chunks", "2", newlang.CHUNKS_TITLE)])
+        langs, problems = self.load()
+        self.assertEqual(problems, [])
+        self.assertEqual([p["name"] for p in langs["ko"].passes], ["Sentence", "Chunks"])
+        # the summary says what each button will wear, and that it can be renamed
+        self.assertIn("Sentence (the sentence, to read on its own); Chunks (", out)
+        self.assertIn("a person renames a level on their own pages", out)
+
+    def test_the_names_follow_what_the_language_has(self):
+        shape = lambda row: [(p["key"], p["name"]) for p in row["passes"]]
+        # marks that come off, in an Arabic script, and an alternate face
+        urdu = self.dry_row("ur", "--name", "Urdish", "--native", "Urdish", "--script", "arabic",
+                            "--alt-font", "Noto Nastaliq Urdu", "--alt-key", "nastaliq")
+        self.assertEqual(shape(urdu), [("vocal", "With vowels"), ("chunks", "Chunks"),
+                                       ("bare", "Plain"), ("alt", "Nastaliq")])
+        self.assertEqual(urdu["passes"][2]["title"],
+                         "the sentence as Urdish is ordinarily printed, with no marks")
+        self.assertEqual(urdu["passes"][3]["kind"], "font")
+        # the same, with no name for the face: a face has to be called something
+        plain = self.dry_row("uq", "--name", "Urdq", "--native", "Urdq", "--script", "arabic",
+                             "--alt-font", "Noto Nastaliq Urdu")
+        self.assertEqual(shape(plain)[-1], ("alt", "Other font"))
+        # marks in a script that is not Arabic's are not vowels
+        marks = self.dry_row("hb", "--name", "Hebrewish", "--native", "Hebrewish", "--script",
+                             "other", "--chars", "\\u05D0-\\u05EA", "--strip", "\\u05B0-\\u05C7")
+        self.assertEqual(shape(marks), [("vocal", "With marks"), ("chunks", "Chunks"),
+                                        ("bare", "Plain")])
+        # words and a vertical setting: the reading names two levels, in all five passes
+        zhish = self.dry_row("qx", "--name", "Testish", "--native", "Testish", "--script", "cjk",
+                             "--words", "--vertical", "--translit-label", "pinyin")
+        self.assertEqual(shape(zhish), [("vocal", "Pinyin"), ("aloud", "Pinyin only"),
+                                        ("chunks", "Chunks"), ("bare", "Plain"),
+                                        ("alt", "Vertical")])
+        self.assertEqual([p["title"] for p in zhish["passes"]],
+                         ["with pinyin over each word", "the reading alone, in pinyin",
+                          newlang.CHUNKS_TITLE, "plain, as Testish is written",
+                          newlang.VERTICAL_TITLE])
+        # a reading with a long name: it would not fit a button, so the level is "Reading"
+        long = self.dry_row("ql", "--name", "Longish", "--native", "Longish", "--script", "cjk",
+                            "--words")
+        self.assertEqual(shape(long)[:2], [("vocal", "Reading"), ("aloud", "Reading only")])
+        # a reading beside the transliteration, over each chunk and not each word
+        kana = self.dry_row("qk", "--name", "Kanaish", "--native", "Kanaish", "--script", "cjk",
+                            "--reading", "--reading-label", "kana")
+        self.assertEqual(shape(kana)[0], ("vocal", "Kana"))
+        self.assertEqual(kana["passes"][0]["title"], "with kana over each chunk")
+        # the labels still count the passes the language has
+        self.assertEqual([p["label"] for p in zhish["passes"]], ["1", "2", "3", "4", "5"])
+        self.assertEqual([p["label"] for p in urdu["passes"]], ["1", "2", "3", "4"])
+
+    def test_every_row_it_writes_is_a_row_the_registry_accepts(self):
+        for argv in (["qa", "--name", "Aaa", "--native", "Aaa"],
+                     ["qb", "--name", "Bbb", "--native", "Bbb", "--script", "arabic"],
+                     ["qc", "--name", "Ccc", "--native", "Ccc", "--script", "cjk", "--words",
+                      "--vertical"],
+                     ["qd", "--name", "Ddd", "--native", "Ddd", "--script", "devanagari"]):
+            with self.subTest(code=argv[0]):
+                row = self.dry_row(*argv)
+                self.assertEqual(languages.level_name_problems(row["passes"]), [])
+                languages.Lang(argv[0], row)
+
+    def test_check_refuses_a_row_of_parseh_s_own_without_a_name(self):
+        raw = json.loads(SHIPPED_TEXT)
+        del raw["it"]["passes"][1]["name"]
+        write(self.shipped, json.dumps(raw, ensure_ascii=False, indent=2))
+        rc, out, _ = self.run_newlang("--check")
+        self.assertEqual(rc, 1)
+        self.assertIn("MISSING  lib/languages.json: Italian (it): pass 'chunks' has no \"name\"", out)
+        self.assertIn("what is missing", out)
+
+    def test_check_refuses_a_bad_name_and_notes_a_row_from_before_names(self):
+        self.assertEqual(self.run_newlang(*self.KO)[0], 0)
+        stored = languages.read_store(self.personal)
+        # a row an older newlang.py wrote: read with the default names, and told so
+        for p in stored["ko"]["passes"]:
+            del p["name"]
+        languages.write_store(stored, self.personal)
+        rc, out, _ = self.run_newlang("--check")
+        self.assertEqual(rc, 0, out[-1500:])
+        self.assertRegex(out, r"note +its passes have no names \(the row was written before "
+                              r"they had any\): Parseh reads them as 'Sentence', 'Chunks'")
+        # a name that is wrong is a fault: the language is left out of every page
+        stored["ko"]["passes"][0]["name"] = "y" * 20
+        stored["ko"]["passes"][1]["name"] = "Chunks"
+        languages.write_store(stored, self.personal)
+        rc, out, _ = self.run_newlang("--check")
+        self.assertEqual(rc, 1)
+        self.assertRegex(out, r"MISSING +level names: pass 'vocal' is named 'y{20}', which is "
+                              r"20 characters")
+        self.assertRegex(out, r"MISSING +every page goes without this language: .*Korean \(ko\)")
+        # and a row with its names mended says them
+        stored["ko"]["passes"][0]["name"] = "Sentence"
+        languages.write_store(stored, self.personal)
+        rc, out, _ = self.run_newlang("--check")
+        self.assertEqual(rc, 0, out[-1500:])
+        self.assertIn("ok       level names Sentence / Chunks", out)
 
     def test_check_reports_what_was_left_out(self):
         languages.write_store({"it": korean("it", folder="notitalian"),

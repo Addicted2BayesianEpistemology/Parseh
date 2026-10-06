@@ -372,9 +372,16 @@ mobile mode:
   `lib/prefs.js`, `/__prefs`, `config/prefs.json`). The place per book — which
   subparagraph, said in words, how far in, by which device and when — and the
   settings that follow a person: the narration's speed, the gap, the seconds ↺
-  and ↻ carry, stop-at-a-change, and the theme. **What is shown stays with the
-  device that shows it**: the passes, the text size, the margins -- and the
-  touch habit of hover ⏸ (above), which is not in `prefs.KEYS` on purpose. For the
+  and ↻ carry, stop-at-a-change, keep-going (`bk_cont`, whether the recording
+  goes on into the next line), the theme, and **the names a person gave the
+  levels of a book** (one key per language and level, `bk_lvl:fa:vocal`: the
+  only keys `lib/prefs.py` knows by their beginning, each checked whole, a name
+  of 12 characters at most; docs/languages.md §3). **What is shown stays with
+  the device that shows it**: which levels are open, the text size, the margins
+  -- and the touch habit of hover ⏸ (above), which is not in `prefs.KEYS` on
+  purpose. A value the toolbox brings is also announced on the document
+  (`parseh:pref`, `{key, value}`, for every key, and for a change another tab
+  makes), so a page that draws a setting itself follows it. For the
   settings the last change wins. For the place nothing is overruled: a book
   opens where THIS device left it, and a line over the text asks — "On the
   computer you were at 2.1, a moment ago. Go there?" — with *Go there* and

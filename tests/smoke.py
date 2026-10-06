@@ -447,6 +447,28 @@ def test_registry():
     check(all(languages.get(c).as_json().get("vb_forms") == raw[c]["vb_forms"]
               for c in languages.CODES if c not in forms_off),
           "and the page each reader embeds carries them (as_json)")
+    # THE LEVELS' NAMES (a0.5.0): every pass of every language carries the word
+    # its button wears, 1 to 12 characters and no two alike in a language, and
+    # the page each reader embeds carries them; the settled ones are pinned
+    # for the languages Parseh ships (a language added later is asked only for
+    # a valid name -- tests/test_level_names.py holds the table, the refusals
+    # and the rule that names a new language's passes)
+    LEVELS = {"fa": "With vowels/Chunks/Plain/Nastaliq", "ar": "With vowels/Chunks/Plain",
+              "ja": "Furigana/Kana only/Chunks/Plain/Vertical",
+              "zh": "Pinyin/Pinyin only/Chunks/Plain/Vertical"}
+    LEVELS.update({c: "Sentence/Chunks" for c in ("it", "fr", "de", "tr", "en", "hi", "es")})
+    unnamed = [c for c in languages.CODES
+               if languages.level_name_problems(languages.get(c).passes)
+               or [p.get("name") for p in languages.get(c).as_json()["passes"]]
+               != [p["name"] for p in languages.get(c).passes]]
+    check(not unnamed, "every language's passes carry a valid name (%d languages)"
+                       % len(languages.CODES), ", ".join(unnamed))
+    off = ["%s: %s" % (c, "/".join(p["name"] for p in languages.get(c).passes))
+           for c, want in LEVELS.items() if c in languages.CODES
+           and "/".join(p["name"] for p in languages.get(c).passes) != want]
+    check(not off, "the levels are named as the owner settled (fa With vowels/Chunks/Plain/"
+                   "Nastaliq, ja Furigana/Kana only/..., zh Pinyin/Pinyin only/..., "
+                   "the rest Sentence/Chunks)", "; ".join(off))
     import tex2html
     was_lang = tex2html.LANG
     try:
