@@ -318,15 +318,53 @@ async function partContract() {
   await page.evaluate(() => { const t = document.querySelectorAll('.sub')[2]; scrollBy(0, t.getBoundingClientRect().top - 150); });
   await sleep(300);
   const before = await box(page, '.sub[data-s="2"]');
+  // the line read is the element under the upper third of the window: what a step holds still
+  const line = (await page.evaluateHandle(() => document.elementFromPoint(innerWidth / 2, innerHeight * 0.3))).asElement();
+  const lineY = (await line.boundingBox()).y;
   await page.evaluate(() => ParsehZoom.set(150));
   await sleep(300);
   const after = await box(page, '.sub[data-s="2"]');
   assert(near(before.y, after.y, 40), `a step taken in the middle of a book keeps the line read where it was on the screen (${before.y.toFixed(0)} -> ${after.y.toFixed(0)})`);
+  // AFTER THE PAGE HAS LAID ITSELF OUT: the reader's header wraps into more rows at 150 % and its
+  // own fitHeader() moves the text down by them, from the resize event the step sends and from
+  // its ResizeObserver, AFTER the line was first put back
+  const held = (await line.boundingBox()).y;
+  assert(near(lineY, held, 2), `the line itself, the element under the upper third of the window, is where it was, to a pixel or two (${lineY.toFixed(1)} -> ${held.toFixed(1)})`);
   await page.evaluate(() => ParsehZoom.set(100));
   await sleep(300);
   const back = await box(page, '.sub[data-s="2"]');
   assert(near(before.y, back.y, 40), `and so does the step back (${back.y.toFixed(0)})`);
+  assert(near(lineY, (await line.boundingBox()).y, 2), 'and the line itself, to a pixel or two');
   await closeAll(page);
+
+  // A PAGE THAT LAYS ITSELF OUT A MOMENT AFTER THE STEP (a bar that measures itself on a timer or in
+  // an observer) is answered too, by putting the line back; and a hand on the page stops that, since a
+  // late jump under a hand is worse than a line that is out
+  for (const hand of [false, true]) {
+    page = await open(DESK, 'settle');
+    await go(page, READER);
+    await page.evaluate(() => { const t = document.querySelectorAll('.sub')[2]; scrollBy(0, t.getBoundingClientRect().top - 150); });
+    await sleep(300);
+    const mark = (await page.evaluateHandle(() => document.elementFromPoint(innerWidth / 2, innerHeight * 0.3))).asElement();
+    const y0 = (await mark.boundingBox()).y;
+    await page.evaluate(() => {
+      // 60 of the page's own px of new space above the text, whenever the test says
+      window.__late = () => { document.querySelector('main').style.marginTop = '60px'; };
+      ParsehZoom.set(150);
+    });
+    await sleep(150);
+    if (hand) { await page.mouse.wheel(0, 40); await sleep(300); }
+    const y05 = (await mark.boundingBox()).y;
+    await page.evaluate(() => __late());
+    await sleep(400);
+    const y1 = (await mark.boundingBox()).y;
+    if (!hand)
+      assert(near(y0, y1, 2), `the text moved down 90 px of the glass by the page itself after the step is put back (${y0.toFixed(1)} -> ${y1.toFixed(1)})`);
+    else
+      assert(y05 < y0 - 10 && near(y1, y05 + 90, 3),
+             `and after a hand has scrolled (${y0.toFixed(1)} -> ${y05.toFixed(1)}) what the page does stands, and is not pulled back under it (${y1.toFixed(1)})`);
+    await closeAll(page);
+  }
 
   // ---- c) the steps, and the way back
   page = await open(DESK, 'steps');
