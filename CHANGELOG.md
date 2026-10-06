@@ -1,4 +1,4 @@
-## [a0.4.4] - unreleased
+## [a0.4.4] - 2026-10-06
 ### Added
 - Parseh lives in the parseh-io organisation on GitHub; Settings → Updating Parseh looks in the new repository
 - The guide is at parseh.io/guide, under a bar that leads to Parseh's site; pages exported from Parseh link to it for good
