@@ -35,8 +35,11 @@ The file is this machine's, and no book's: it is not in `lib/bundle.py`'s
 allowlist, so a book downloaded and handed on carries the edition, not
 somebody's progress through it.
 """
+import functools
+import itertools
 import json
 import os
+import threading
 import time
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -54,12 +57,42 @@ MAX_VALUE = 200          # a setting is a number or a word, never a document
 MAX_PLACES = 2000        # one per book ever opened; far more than a shelf holds
 
 
+# THE ONE LOCK FOR THIS FILE, which every writer in this process takes around
+# its whole read-change-write (lib/later.py shares it).  The server answers
+# each request on a thread of its own, and a person's pages write together --
+# a reader's place, a speed, a mark -- so two of them used to read the same
+# file, change different things and write it back, the later one erasing the
+# earlier's change; and, worse, both wrote through ONE temporary name, so the
+# second `open` truncated what the first was about to move into place, and
+# the first `os.replace` then failed with FileNotFoundError, answered as a 400
+# (tests/making.mjs measured 379 of 3000 writes lost that way).  An RLock, so
+# that a function holding it may call another that takes it.
+LOCK = threading.RLock()
+# and a temporary name no other write can share, between threads and between
+# two servers over one config/ alike
+_SEQ = itertools.count(1)
+
+
+def _locked(fn):
+    """A function that reads this file, changes what it read and writes it
+    back, as one step nobody else's can fall into."""
+    @functools.wraps(fn)
+    def inside(*args, **kwargs):
+        with LOCK:
+            return fn(*args, **kwargs)
+    return inside
+
+
 def _read():
-    try:
-        with open(STORE, "r", encoding="utf-8") as fh:
-            doc = json.load(fh)
-    except (OSError, ValueError):
-        return {"settings": {}, "places": {}}
+    # under the lock so that a read never has the file open while a write
+    # moves a new one over it (a platform that will not replace an open file
+    # would refuse the write)
+    with LOCK:
+        try:
+            with open(STORE, "r", encoding="utf-8") as fh:
+                doc = json.load(fh)
+        except (OSError, ValueError):
+            return {"settings": {}, "places": {}}
     if not isinstance(doc, dict):
         return {"settings": {}, "places": {}}
     for k in ("settings", "places"):
@@ -71,20 +104,33 @@ def _read():
 def _write(doc):
     """Written whole, through a temporary file beside it: a reader asking for
     the place while it is being written gets the old file or the new one, and
-    never half of either."""
-    folder = os.path.dirname(STORE)
-    os.makedirs(folder, exist_ok=True)
-    tmp = STORE + ".tmp"
-    with open(tmp, "w", encoding="utf-8") as fh:
-        json.dump(doc, fh, ensure_ascii=False, indent=1, sort_keys=True)
-        fh.write("\n")
-    os.replace(tmp, STORE)
+    never half of either.  The temporary name is this write's own (process,
+    then a number), and the whole is held under LOCK."""
+    with LOCK:
+        folder = os.path.dirname(STORE)
+        os.makedirs(folder, exist_ok=True)
+        tmp = "%s.%d.%d.tmp" % (STORE, os.getpid(), next(_SEQ))
+        try:
+            with open(tmp, "w", encoding="utf-8") as fh:
+                json.dump(doc, fh, ensure_ascii=False, indent=1, sort_keys=True)
+                fh.write("\n")
+            os.replace(tmp, STORE)
+        finally:
+            # a write that failed half way leaves nothing behind
+            try:
+                os.unlink(tmp)
+            except OSError:
+                pass
     return doc
 
 
 def all_of():
-    """Everything, as a page asks for it at load."""
-    return _read()
+    """Everything a page asks for at load: the settings and the places.  NOT
+    `later` (lib/later.py), the chunks flagged to review: they have a door of
+    their own (/__later) so that they do not ride on every page load.  They
+    stay in the file all the same, which every writer here writes back whole."""
+    doc = _read()
+    return {"settings": doc["settings"], "places": doc["places"]}
 
 
 def settings():
@@ -101,6 +147,7 @@ def _clean(s, limit=MAX_VALUE):
     return s[:limit]
 
 
+@_locked
 def set_settings(changes, by=""):
     """`changes` is {key: {"v": value, "at": seconds}}; a key nobody follows is
     ignored, and an older change never overwrites a newer one."""
@@ -131,6 +178,7 @@ def place(path):
     return _read()["places"].get(path)
 
 
+@_locked
 def set_place(path, i, label="", pct=None, by="", at=None):
     """Where a book was last read. `path` is the reader's own address, which is
     what a reader already keys its own copy by (`MINE('pos')`)."""
@@ -169,6 +217,7 @@ def set_place(path, i, label="", pct=None, by="", at=None):
     return rec
 
 
+@_locked
 def forget_place(path):
     doc = _read()
     if doc["places"].pop(_clean(path, 300), None) is None:

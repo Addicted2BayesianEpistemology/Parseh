@@ -147,7 +147,9 @@ var MOBILE_PAGES = [
   // the exercise decks: each page carries both layouts
   { match: /^\/exercises\/(.*)$/, to: '/exercises/$1' },
   // the licences: both layouts, in one column
-  { match: /^\/licences\/$/, to: '/licences/' }
+  { match: /^\/licences\/$/, to: '/licences/' },
+  // the chunks flagged to review later: both layouts, in one column
+  { match: /^\/later\/$/, to: '/later/' }
 ];
 ```
 
@@ -383,6 +385,19 @@ mobile mode:
   phone that has never opened a book still says how far it has been read. With
   the computer unreachable, every page keeps its own place as it always did
   and says nothing about it.
+* **The chunks flagged to review later are the person's too** (`lib/later.py`,
+  `lib/later.js`, `/__later`, a third key of `config/prefs.json`; never in a
+  book, never in a bundle). A phone may flag a chunk, list the flags (a sheet
+  from the foot in a reader or a player, and the page `/later/`, which both
+  layouts carry), go to one, remove one with an Undo, test itself and copy the
+  list; it never makes a card — the sheet draws no *+ card* — and edits no book.
+  The flags are kept in `localStorage` (`parseh_later`) with an outbox of the
+  changes the computer has not been told (`parseh_later_out`), sent when a page
+  loads, when the browser comes back online and when the page is shown again —
+  so what was flagged on a train arrives, and `/__later` is among the doors the
+  worker refuses at once while the computer is away. Per flag the newest change
+  wins and a removal is remembered for 90 days, so a device that still holds a
+  flag cannot bring it back.
 * **A finger reaches what a key reached** (`lib/wordtouch.js`). Copying is a
   Shift-click and a card an Alt-click, and a finger holds neither: so a finger
   HELD on a word for half a second opens a small menu — *Card for “word”* ·
@@ -1378,8 +1393,10 @@ cannot be reached" page for them.**
 * **The way in is kept**, from one list the computer gives at `GET /__shell`
   (`offline.shell()`): the hub at **both** its addresses — `caches.match`
   tells `/` and `/?mode=mobile` apart, so the one answer is put under both —
-  `/m/books/`, `/m/videos/`, `/exercises/`, `/studio/`, `/m/kept/` and
-  `/m/offline/`, the two lists the library pages ask for rather than carry,
+  `/m/books/`, `/m/videos/`, `/exercises/`, `/studio/`, `/m/kept/`, `/later/`
+  (an empty frame that `lib/later.js` fills from the phone's own copy of the
+  flags, so it lists what was flagged on the train) and `/m/offline/`, the two
+  lists the library pages ask for rather than carry,
   and every sheet and script they load with the toolbox's own faces (`SHARED`,
   and the studio's own `STUDIO_FILES`) — the studio's thirteen faces apart,
   which are `later` and are warmed only where they are wanted (below).

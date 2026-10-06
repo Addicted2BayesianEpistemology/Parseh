@@ -1,0 +1,77 @@
+<!doctype html>
+<!-- A STAND-IN FOR A READER, for tests/review_later_core.mjs: a fixed header the
+     way the reader has one (--headh), some text, and a FAKE ADAPTER over the real
+     lib/later.js and lib/later.css -- so that the sidebar is driven without a book.
+     The test serves it from the toolbox's own origin (a route over the real server),
+     which is what puts the real door, the real files and one localStorage behind it.
+
+       ?ref=fa       the adapter of a Persian book (right to left), else the English one
+       ?kind=video   the adapter of a video
+       ?bare=1       without lib/parseh.js, as a page that has none
+
+     What the adapter was asked is in window.__log; what it answers is set by
+     window.__adrift (ids it cannot find), window.__cardOK (canCard) and
+     window.__saveCard (whether a card sheet saved). -->
+<html lang="en"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>later fixture</title>
+<link rel="stylesheet" href="/lib/parseh.css">
+<link rel="stylesheet" href="/lib/langs.css">
+<link rel="stylesheet" href="/lib/later.css">
+<style>
+:root{--headh:92px}
+header{position:fixed;top:0;left:0;right:0;height:var(--headh);box-sizing:border-box;display:flex;align-items:center;
+  gap:10px;padding:0 14px;background:var(--card);border-bottom:1px solid var(--rule);z-index:50}
+body{padding-top:var(--headh)}
+main{max-width:760px;margin:0 auto;padding:20px}
+main p{margin:0 0 14px;line-height:1.7}
+</style>
+<script>
+  var q = new URLSearchParams(location.search);
+  if (!q.has('bare')) document.write('<script src="/lib/parseh.js"><\/script>');
+</script>
+<script src="/lib/later.js"></script>
+</head><body>
+<header id="hd">
+  <strong id="name">Mini</strong>
+  <button type="button" id="hb" title="a control of the page's own, in the header">pass 1</button>
+  <span id="slot"></span>
+</header>
+<main>
+  <p>wound the clock and the second chunk, then opens early. A page of text for the panel to cover.</p>
+  <p>Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore.</p>
+  <p>Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo.</p>
+</main>
+<script>
+(function () {
+  var fa = q.get('ref') === 'fa', video = q.get('kind') === 'video';
+  window.__log = [];
+  window.__adrift = {};
+  window.__cardOK = true;
+  window.__saveCard = true;
+  window.__sheetOpen = false;
+  // a control of the page's own that must stay live under the sidebar
+  var passes = 1;
+  document.getElementById('hb').addEventListener('click', function () { this.textContent = 'pass ' + (++passes); });
+  // a sheet of the page's that uses Escape first (a cloud, the card sheet)
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && window.__sheetOpen) e.preventDefault(); });
+  var delay = function (v) { return new Promise(function (done) { setTimeout(function () { done(v); }, 5); }); };
+  window.__adapter = {
+    kind: video ? 'video' : 'book',
+    ref: video ? 'street-market-a1b2c3' : (fa ? '/books/persian/mini-fa/reader/' : '/books/english/mini-en/reader/'),
+    title: video ? 'Street market' : (fa ? 'Persian one' : 'Mini'),
+    lang: fa ? 'fa' : 'en', glossLang: fa ? 'en' : 'fa',
+    canCard: function () { return !!window.__cardOK; },
+    locate: function (r) { return delay({found: !window.__adrift[r.id]}); },
+    goTo: function (r) { window.__log.push('goTo:' + r.id); return delay(); },
+    makeCard: function (r) { window.__log.push('card:' + r.id); return delay({saved: window.__saveCard !== false}); },
+    queue: function (rs) { window.__log.push('queue:' + rs.map(function (r) { return r.id; }).join(',')); return delay(); }
+  };
+  window.__panel = ParsehLater.panel(window.__adapter);
+  document.getElementById('slot').appendChild(window.__panel.button);
+  window.__toggles = [];
+  window.__panel.onToggle(function (open) { window.__toggles.push(open); });
+})();
+</script>
+</body></html>

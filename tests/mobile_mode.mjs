@@ -289,7 +289,7 @@ const MOBILE_CLICKABLE = page => page.evaluate(() => ['a:/', 'button:browser', '
   // rest (lib/explain.js); on a phone it is part of every bar
   ...([...document.querySelectorAll('.px-ask')].filter(e => e.getClientRects().length).length ? ['button:explain'] : []),
   ...[...document.querySelectorAll('.m-langs .chip')].map(c => 'button:' + c.getAttribute('data-pick')),
-  'a:/books/', 'a:/youtube/', 'a:/studio/', 'a:/exercises/', 'a:/guide/', 'a:/m/install/', 'a:/licences/',
+  'a:/books/', 'a:/youtube/', 'a:/studio/', 'a:/exercises/', 'a:/later/', 'a:/guide/', 'a:/m/install/', 'a:/licences/',
   // the author's two links (lib/author.py), the last line of the hub, the only
   // ones that leave Parseh: tests/signature.mjs drives what they do
   'a:https://github.com/Addicted2BayesianEpistemology', 'a:https://imbrunoursino.net/']);
@@ -369,7 +369,7 @@ async function partHub() {
       const before = s.clickable;
       // (the reading help's door, "Reading what nobody has glossed", opens its
       // page in Settings since a0.3.2; /lookup/ only sends there)
-      for (const h of ['a:/books/', 'a:/youtube/', 'a:/studio/', 'a:/exercises/', 'a:/anki/sync/', 'a:/clips/',
+      for (const h of ['a:/books/', 'a:/youtube/', 'a:/studio/', 'a:/exercises/', 'a:/later/', 'a:/anki/sync/', 'a:/clips/',
                        'a:/settings/reading-help/', 'button:stop', 'a:/guide/'])
         assert(before.includes(h), 'the browser hub shows ' + h);
       assert(!before.some(h => /guide\.pdf/.test(h)), 'and no link opens the PDF guide any more');
@@ -391,20 +391,21 @@ async function partHub() {
                                        && document.activeElement.closest('.m-bar') !== null),
              'the focus went with the click to the Mobile button now on the screen');
       eq(s.clickable, await MOBILE_CLICKABLE(page),
-         'all there is to tap: home, the switch, the theme, the chips, four doors, the guide, the app\'s, the licences and the author\'s two links');
+         'all there is to tap: home, the switch, the theme, the chips, five doors (the fifth, Review later, opens the chunks flagged to come back to), the guide, the app\'s, the licences and the author\'s two links');
       for (const no of ['button:stop', 'a:/anki/sync/', 'a:/clips/', 'a:/lookup/', 'a:/settings/reading-help/'])
         assert(!s.clickable.includes(no), 'no ' + no + ' on the mobile hub');
       assert(!(await page.evaluate(() => [...document.querySelectorAll('.addr, .foot')].some(e => e.getClientRects().length))),
              'and no server address, no foot');
       assert(s.sideways <= 0, 'the page does not scroll sideways (' + s.sideways + ')');
       const ds = await doors(page);
-      eq(ds.map(d => d.href), ['/books/', '/youtube/', '/studio/', '/exercises/', '/guide/', '/m/install/'],
-         'the doors, in order (the last installs the mobile interface as an app)');
+      eq(ds.map(d => d.href), ['/books/', '/youtube/', '/studio/', '/exercises/', '/later/', '/guide/', '/m/install/'],
+         'the doors, in order (Review later after the four; the last installs the mobile interface as an app)');
       for (const d of ds) {
         assert(d.h >= 48 && d.l >= 0 && d.r <= vp.width && d.hit,
                `${d.href}: ${Math.round(d.h)}px high, inside the screen (${Math.round(d.l)}..${Math.round(d.r)}), reached by a tap`);
         if (d.href !== '/guide/' && d.href !== '/m/install/')
-          assert(d.tags.length && d.counted && d.tags.every(t => /^\d+ /.test(t)), `${d.href} says how many: ${d.tags.join(', ')}`);
+          // (Review later says «nothing marked yet» while nothing is flagged)
+          assert(d.tags.length && d.counted && d.tags.every(t => /^(\d+ |nothing marked yet$)/.test(t)), `${d.href} says how many: ${d.tags.join(', ')}`);
       }
       const bar = await page.evaluate(() => [...document.querySelectorAll('.m-bar a, .m-bar button')].map(b => {
         const r = b.getBoundingClientRect();
