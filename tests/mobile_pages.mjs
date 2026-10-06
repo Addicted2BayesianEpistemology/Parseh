@@ -236,6 +236,15 @@ async function newPage(opts, tag) {
   return page;
 }
 const tap = async (page, sel) => { const l = page.locator(sel).first(); if (page.touch) await l.tap(); else await l.click(); };
+/* THE BROWSER | MOBILE SWITCH OF A DOCUMENT OR A DECK is in its gear (a0.5.0), not on the phone's bar: the ⚙ after ◐, the
+   Interface group of the sheet, the half that says `mode` (the library's and the decks' list's keep their own on the bar) */
+async function gearMode(page, mode) {
+  await tap(page, '.m-topbar [data-parseh-gear]');
+  await page.waitForSelector('.pg-panel:not([hidden])');
+  await page.evaluate(() => ParsehGear.mounted().open('interface'));
+  await sleep(150);
+  await tap(page, `.pg-panel [data-pg-group=interface] .pg-chip:text-is("${mode === 'browser' ? 'Browser' : 'Mobile'}")`);
+}
 // The toolbox keeps the reading place for every device (§4.9): a book opened
 // on a device that has not read it is ASKED whether to go to the place
 // another left.  A person answers before doing anything else, and so does a
@@ -1791,7 +1800,7 @@ async function partExport() {
       await page.reload();
     }
     eq(await page.evaluate(() => !!navigator.serviceWorker.controller), true, 'the worker controls the document');
-    await tap(page, '.m-topbar [data-parseh-mode=browser]');
+    await gearMode(page, 'browser');
     await page.waitForFunction(() => document.documentElement.dataset.mode === 'browser');
     await page.waitForSelector('header.topbar #dl-html', {state: 'attached'});
     eq(await page.evaluate(() => !!navigator.serviceWorker.controller), true,
@@ -3421,7 +3430,7 @@ async function partDecks() {
     // the list arrives after the page: its rows (and their actions, hidden in
     // the mobile layout) must be there before asking whether they are drawn
     await page.waitForFunction(() => document.querySelector('.dk-row-actions'));
-    await tap(page, '.m-topbar [data-parseh-mode=browser]');
+    await gearMode(page, 'browser');
     eq(await page.evaluate(() => [document.documentElement.getAttribute('data-mode'), localStorage.getItem('parseh_mode'),
                                   document.cookie.includes('parseh_mode=browser')]),
        ['browser', 'browser', true], 'Browser pressed on a deck: stored, mirrored, applied');

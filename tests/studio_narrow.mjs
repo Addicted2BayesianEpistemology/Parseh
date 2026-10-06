@@ -27,8 +27,10 @@
 //      top of the screen with the bars away, a jump up leaves it just under
 //      the two bars, and a link to a heading opens with it at the top (a
 //      reload keeps the place read on to); the toolbar is Contents, Glosses,
-//      Linked from and Aa, which opens the typography controls, no slider in a row that
-//      scrolls sideways; Tab brings each control of the topbar's row into
+//      Linked from and Aa, which opens the GEAR at its Text group (a0.5.0: a
+//      sheet over the foot of the screen, every slider in it reached by a tap,
+//      the bars no taller for it; ◐ and ⚙ stay on the screen at the end of
+//      the topbar's row, which scrolls sideways); Tab brings each control of the topbar's row into
 //      view; turned on its side mid-note, the page stays where it was; the
 //      tag field typed in with the keyboard up is not under the topbar; on a
 //      desktop nothing of this happens -- the topbar scrolls away with the
@@ -380,7 +382,8 @@ try {
       assert(s.top.t === 0 && s.tool.t >= s.top.b && s.edit && s.contents,
              `${at}, at the top: the topbar at 0, the toolbar under it, Edit and Contents reached by a tap (${JSON.stringify(s)})`);
       const pair = (s.top.b - s.top.t) + (s.tool.b - s.tool.t), head = s.tool.b;
-      assert(pair <= H * 0.3, `${at}: the two bars together are a small part of the screen (${pair} of ${H} px)`);
+      // (a third at most, since ◐ and ⚙ are 48px fingers' squares in the topbar's row: a quarter before a0.5.0)
+      assert(pair <= H * 0.33, `${at}: the two bars together are a small part of the screen (${pair} of ${H} px)`);
       if (SHOTS) await page.screenshot({path: `${SHOTS}/reading-${W}-top.png`});
 
       // just past a finger's first move, the head of the page still on the screen: nothing goes away
@@ -404,7 +407,7 @@ try {
       if (SHOTS) await page.screenshot({path: `${SHOTS}/reading-${W}-up.png`});
 
       // every control of both bars is reached: the topbar's once its row is
-      // scrolled sideways to it, the typography controls once "Aa" opens them
+      // scrolled sideways to it, and the settings -- ◐ and ⚙ -- without scrolling at all
       const reach = sel => page.evaluate(sel => {
         const out = {missed: [], shown: 0};
         for (const el of document.querySelectorAll(sel)) {
@@ -421,36 +424,60 @@ try {
       let got = await reach('.topbar a, .topbar summary, .topbar button:not([hidden])');
       assert(got.shown >= 6 && !got.missed.length, `${at}: every control of the topbar is reached by a tap once its row is scrolled to it (${got.shown}, missed ${JSON.stringify(got.missed)})`);
       await page.locator('.topbar-actions').evaluate(r => { r.scrollLeft = 0; });
-      const typo = () => page.evaluate(() => [...document.querySelectorAll('#typobar input, #typobar select, #btn-typo-reset, #btn-print')]
+      // ◐ and ⚙ are the row's last two and are on the screen with the row scrolled to its start
+      const tail = await page.evaluate(() => ['.topbar [data-parseh-theme]', '.topbar [data-parseh-gear]'].map(sel => {
+        const r = document.querySelector(sel).getBoundingClientRect(), hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+        return [r.left >= 0 && r.right <= innerWidth && r.width >= 40 && r.height >= 40, !!hit && document.querySelector(sel).contains(hit)];
+      }));
+      assert(JSON.stringify(tail) === '[[true,true],[true,true]]',
+             `${at}: ◐ and ⚙ stand on the screen at the end of the topbar's row, with the row scrolled to its start, and a tap reaches each (${JSON.stringify(tail)})`);
+      const typo = () => page.evaluate(() => [...document.querySelectorAll('#typobar input, #typobar select, #btn-typo-reset')]
         .filter(e => e.getClientRects().length).length);
       got = await reach('#typobar button, #typobar input, #typobar select');
       // four: "Linked from" stays with Contents and Glosses on a phone (tests/doclinks.mjs)
       assert(got.shown === 4 && !got.missed.length && await typo() === 0,
              `${at}: the toolbar shows Contents, Glosses, Linked from and Aa, each reached by a tap, and no typography control (${got.shown}, missed ${JSON.stringify(got.missed)})`);
+      const barsHeight = (await bars(page)).tool.b;
       await page.locator('#btn-typo').tap();
       await settle(page);
-      got = await reach('#typobar button, #typobar input, #typobar select');
-      const sideways = await page.evaluate(() => [...document.querySelectorAll('#typobar input[type=range]')].some(inp => {
-        for (let a = inp.parentElement; a && a !== document.body; a = a.parentElement)
-          if (a.scrollWidth > a.clientWidth + 1 && /auto|scroll/.test(getComputedStyle(a).overflowX)) return true;
-        return false;
-      }));
-      assert(await typo() >= 9 && !got.missed.length && !sideways,
-             `${at}: Aa opens the typography controls, each reached by a tap, no slider in a row that scrolls sideways (missed ${JSON.stringify(got.missed)})`);
-      if (SHOTS) await page.screenshot({path: `${SHOTS}/reading-${W}-typo.png`});
+      // THE GEAR, at its Text group: the sheet over the foot of the screen
+      const gear = await page.evaluate(() => {
+        const p = document.querySelector('.pg-panel'), body = p && p.querySelector('.pg-body');
+        const r = p && p.getBoundingClientRect(), g = p && p.querySelector('[data-pg-group=text]');
+        return {up: !!p && !p.hidden && p.classList.contains('pg-sheet'),
+                foot: !!r && Math.round(r.bottom) === innerHeight && r.height < innerHeight * 0.7,
+                atText: !!g && Math.abs(g.getBoundingClientRect().top - body.getBoundingClientRect().top) < 40,
+                sliders: p ? [...p.querySelectorAll('input[type=range]')].map(i => i.closest('.pg-row').getAttribute('data-pg-row')) : []};
+      });
+      assert(gear.up && gear.foot && gear.atText && JSON.stringify(gear.sliders) === '["fa","base","width","lead","voce"]',
+             `${at}: Aa opens the gear at Text, a sheet over the foot of the screen with the five sliders (${JSON.stringify(gear)})`);
+      got = await reach('.pg-panel input, .pg-panel button, .pg-panel select');
+      assert(got.shown >= 8 && !got.missed.length, `${at}: every control of the sheet is reached by a tap (${got.shown}, missed ${JSON.stringify(got.missed)})`);
+      assert(await typo() === 0 && (await bars(page)).tool.b === barsHeight,
+             `${at}: and the bars are no taller for it (${barsHeight} px)`);
+      if (SHOTS) await page.screenshot({path: `${SHOTS}/reading-${W}-gear.png`});
       await page.locator('#btn-typo').tap();
       await settle(page);
-      assert(await typo() === 0 && await page.locator('#btn-typo').getAttribute('aria-expanded') === 'false',
-             `${at}: Aa closes them again`);
-      // left open, the typography controls would come back with the bars over
-      // most of a small screen: a swipe down closes them with the bars
+      assert(await page.evaluate(() => document.querySelector('.pg-panel').hidden) &&
+             await page.locator('#btn-typo').getAttribute('aria-expanded') === 'false',
+             `${at}: Aa closes it again`);
+      // the sheet hangs from no bar: a swipe down puts the bars away and leaves it where it is,
+      // and the page above it goes on moving
       await page.locator('#btn-typo').tap();
       await settle(page);
-      await swipe(page, cdp, Math.round(H * 0.5), H - 40);
+      // (two swipes over the strip above the sheet, which starts at 0.45 H or lower: the bars go once the page
+      // is moved past the head they stand over, which on the narrowest phone is more than one swipe up there)
+      await swipe(page, cdp, 200, Math.round(H * 0.4));
+      await swipe(page, cdp, 200, Math.round(H * 0.4));
+      s = await bars(page);
+      assert(await page.evaluate(() => !document.querySelector('.pg-panel').hidden) && s.hidden,
+             `${at}: a swipe over the text puts the bars away and leaves the sheet standing`);
+      await page.locator('.pg-panel .pg-x').tap();
+      await settle(page);
       await swipe(page, cdp, -40, Math.round(H * 0.45));
       s = await bars(page);
-      assert(await typo() === 0 && !s.hidden && (s.tool.b - s.top.t) <= H * 0.3,
-             `${at}: the bars going away close Aa, so they come back short (${s.tool.b} of ${H} px)`);
+      assert(await typo() === 0 && !s.hidden && (s.tool.b - s.top.t) <= H * 0.33,
+             `${at}: the bars come back short (${s.tool.b} of ${H} px)`);
 
       // Tab along the topbar's row: the control focused is in the row's view
       await page.locator('.topbar .hublink').focus();
@@ -603,12 +630,12 @@ try {
     });
     let v = await look(desk);
     assert(v.top && v.meta && v.bar && v.hide && !v.show,
-           `the bars stand to begin with, with "⌃ bars" among them (${JSON.stringify(v)})`);
+           `the bars stand to begin with, with "⌃ hide bars" among them (${JSON.stringify(v)})`);
     await desk.locator('#btn-bars').click();
     await settle(desk);
     v = await look(desk);
     assert(!v.top && !v.meta && !v.bar && !v.hide && v.show,
-           `"⌃ bars" takes all three away and leaves the way back (${JSON.stringify(v)})`);
+           `"⌃ hide bars" takes all three away and leaves the way back (${JSON.stringify(v)})`);
     assert(v.sticky === '10px', `and a jump to a heading no longer clears a bar (${v.sticky})`);
     await desk.evaluate(() => window.scrollTo(0, 0));
     await settle(desk);

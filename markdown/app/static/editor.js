@@ -39,7 +39,9 @@ function initEdit() {
     if (kanaBtn) kanaBtn.hidden = !L.reading;
     const tlLabel = $("#btn-tl-editor-label");
     if (tlLabel) tlLabel.textContent = "✎ " + L.name;
-    applyTypo(loadTypo(DOC_ID));
+    // the preview wears the document's typography (the gear's Text rows move it,
+    // and name themselves after this language: they are told)
+    studioTypo.refresh();
   }
   applyLangUi();
 
@@ -563,6 +565,8 @@ function initEdit() {
   let prose = readJson("prose-lang", null) || {code: "en", dir: "ltr"};
   let chosenDir = storedDir(DOC_ID);
   const btnDir = $("#btn-editor-dir");
+  // who is told when the direction is drawn (the gear's row, static/gear.js)
+  const dirSubs = new Set();
   function rtlFace() {
     const tokens = getComputedStyle(document.documentElement);
     const face = [prose, lang()].find(L => L && L.dir === "rtl"
@@ -591,13 +595,24 @@ function initEdit() {
     // another face wraps the lines elsewhere: the panes are lined up again
     alignState.fontPx = parseFloat(getComputedStyle(src).fontSize);
     alignPanes();
+    dirSubs.forEach(fn => { try { fn(); } catch (e) { /* the listener's own fault */ } });
   }
-  if (btnDir) btnDir.addEventListener("click", () => {
-    chosenDir = src.dir === "rtl" ? "ltr" : "rtl";
+  // THE ONE PLACE THE CHOICE IS MADE: the button's press and the gear's
+  // "Write the source right to left" (a0.5.0) both come here.  The button's
+  // press keeps the cursor in the box it turned; the gear's switch keeps the
+  // focus it has, so the keyboard that pressed it is still in the panel.
+  function setEditorDir(rtl, keepFocusInSource) {
+    chosenDir = rtl ? "rtl" : "ltr";
     storeDir(DOC_ID, chosenDir);
     applyEditorDir();
-    src.focus({preventScroll: true});
-  });
+    if (keepFocusInSource) src.focus({preventScroll: true});
+  }
+  if (btnDir) btnDir.addEventListener("click", () => setEditorDir(src.dir !== "rtl", true));
+  window.ParsehStudioEditorDir = {
+    isRtl: () => src.dir === "rtl",
+    set: rtl => setEditorDir(!!rtl, false),
+    subscribe: fn => { dirSubs.add(fn); return () => dirSubs.delete(fn); },
+  };
   applyEditorDir();
 
   /* ---- undo / redo -----------------------------------------------------

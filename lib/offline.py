@@ -883,6 +883,11 @@ MEDIA_IN_MARKDOWN = None
 STUDIO_FILES = ("/static/app.css", "/static/langs.css", "/static/mobile.css",
                 "/static/app.js", "/static/exform.js", "/static/decks.js",
                 "/static/mode.js", "/static/mathjax.css", "/static/mathjax.js",
+                # THE GEAR'S ROWS (a0.5.0): what a document's, a deck's and an
+                # exercise's own ⚙ holds -- the page links this last, and a kept
+                # page without it has a button that does nothing (the toolkit it
+                # opens is in SHARED, /lib/pagesettings.js)
+                "/static/gear.js",
                 # THE SHEET ON ITS OWN, which nothing named until now.  It was
                 # split out of app.css for the bare note page, which links it
                 # and nothing else (markdown/app/templates/note.html) -- so a

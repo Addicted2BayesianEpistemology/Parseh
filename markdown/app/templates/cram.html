@@ -12,6 +12,13 @@
 <link rel="stylesheet" href="{{STUDIO}}/static/langs.css">
 <!-- the mobile interface's layout of this page (docs/mobile.md): which of the two is drawn, <html data-mode> says -->
 <link rel="stylesheet" href="{{STUDIO}}/static/mobile.css">
+<!-- THE GEAR (a0.5.0): this page's settings in one panel, ⚙ in its bar -- on a
+     phone, in the row of the exercise's title (static/gear.js says what is in
+     it, the last script below).  The toolkit is in the head so that its sheet
+     is on its way while the page draws; lib/prefs.js lets the theme follow a
+     person to their other devices. -->
+<script src="/lib/pagesettings.js"></script>
+<script src="/lib/prefs.js"></script>
 <!-- "?": on a touch screen, every button's explanation is one tap away
      (lib/explain.js, TO-DO §4.7); it draws nothing where a mouse hovers -->
 <script src="/lib/explain.js" defer></script>
@@ -23,18 +30,18 @@
 <header class="topbar" data-layout="browser">
   <a class="hublink" href="/" title="Parseh — the hub"><span class="glyph">پ</span>Parseh</a>
   <a class="brand" href="{{BASE}}/"><span class="brand-fa" lang="fa">ت</span> Exercises</a>
-  <div class="topbar-actions"><a class="btn ghost dk-back" href="./">← Deck</a></div>
-</header>
-<header class="m-topbar" data-layout="mobile">
-  <a class="m-home" href="/" title="Parseh — the hub"><span class="glyph">پ</span><span class="word">Parseh</span></a>
-  <a class="m-up dk-back" href="./" title="the deck"><span aria-hidden="true">‹</span><span class="word"> Deck</span></a>
-  <span class="m-sp"></span>
-  {{MODE_SWITCH}}
-  <button type="button" class="m-theme" data-parseh-theme title="theme">◐</button>
+  <div class="topbar-actions">
+    <a class="btn ghost dk-back" href="./">← Deck</a>
+    <!-- ◐ AND ⚙, the last two (the gear is put after ◐ by static/gear.js) -->
+    <span class="bar-tail">
+      <button type="button" class="btn ghost bar-theme" data-parseh-theme title="theme">◐</button>
+    </span>
+  </div>
 </header>
 <main class="container dk-study-page">
   <div class="dk-studyhead">
-    <!-- the mobile layout has no bar over the exercise: the way back is here -->
+    <!-- the mobile layout has no bar over the exercise: the way back is here,
+         and the gear at the other end of the row (static/gear.js) -->
     <a class="m-back dk-back" href="./" data-layout="mobile" title="the deck" aria-label="back to the deck">‹</a>
     <h1 class="dk-title">{{TITLE}}</h1>
     <div id="cram-progress" class="dk-study-counts" aria-live="polite"></div>
@@ -107,5 +114,7 @@
 <!-- the exercise form, for ✎ Edit (static/exform.js, TO-DO §4.8) -->
 <script src="{{STUDIO}}/static/exform.js"></script>
 <script src="{{STUDIO}}/static/decks.js"></script>
+<!-- the gear's rows, after the scripts that hold what they move -->
+<script src="{{STUDIO}}/static/gear.js"></script>
 </body>
 </html>

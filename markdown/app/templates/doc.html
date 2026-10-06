@@ -24,6 +24,14 @@
 <!-- the mobile interface's layout of this page (docs/mobile.md) -->
 <link rel="stylesheet" href="{{STUDIO}}/static/mobile.css">
 <script src="{{STUDIO}}/static/mode.js" defer></script>
+<!-- THE GEAR (a0.5.0): this page's settings in one panel, ⚙ in its bar.  The
+     toolkit is in the head so that its sheet is on its way while the page
+     draws; what is IN the panel is static/gear.js, the last script below.
+     lib/prefs.js is what lets the theme follow a person to their other
+     devices; it is plain, not deferred, because gear.js asks the moment it
+     runs whether it is there (a studio run alone has neither). -->
+<script src="/lib/pagesettings.js"></script>
+<script src="/lib/prefs.js"></script>
 <!-- "?": on a touch screen, every button's explanation is one tap away
      (lib/explain.js, TO-DO §4.7); it draws nothing where a mouse hovers -->
 <script src="/lib/explain.js" defer></script>
@@ -32,13 +40,13 @@
 <script src="/lib/keep.js" defer></script>
 </head>
 <body data-page="doc" data-base="{{BASE}}" data-doc-id="{{DOC_ID}}" data-target="{{TARGET}}" data-decks-base="{{DECKS_BASE}}" data-notes-source="{{NOTES_SOURCE}}">
-<!-- THE MOBILE BAR (docs/mobile.md): the way back to the library, the
-     switch, and nothing that writes this document -->
+<!-- THE MOBILE BAR (docs/mobile.md): the way back to the library, the theme,
+     and the gear after it (static/gear.js) -- the Browser | Mobile switch is in
+     the gear's Interface group now -- and nothing that writes this document -->
 <header class="m-topbar" data-layout="mobile">
   <a class="m-home" href="/" title="Parseh — the hub"><span class="glyph">پ</span><span class="word">Parseh</span></a>
   <a class="m-up" href="{{BASE}}/" title="all the documents"><span aria-hidden="true">‹</span><span class="word"> Library</span></a>
   <span class="m-sp"></span>
-  {{MODE_SWITCH}}
   <button type="button" class="m-theme" data-parseh-theme title="theme: light / dark / sepia">◐</button>
 </header>
 <header class="topbar" data-layout="browser">
@@ -90,6 +98,13 @@
       </div>
     </details>
     <button class="btn danger ghost" id="btn-stop">Stop server</button>
+    <!-- ◐ AND ⚙, the last two of the row (the gear is put after ◐ by
+         static/gear.js).  Their own box, because under 561px this row scrolls
+         sideways and the box stays where it is (app.css, .bar-tail): the
+         settings must never be a scroll away. -->
+    <span class="bar-tail">
+      <button type="button" class="btn ghost bar-theme" data-parseh-theme title="theme: light / dark / sepia">◐</button>
+    </span>
   </div>
 </header>
 
@@ -119,46 +134,22 @@
     <button class="btn ghost" id="btn-backlinks" aria-expanded="false" aria-controls="linkspane"
             title="The documents of this library that link to this one (Esc closes the list)">↩ Linked from ({{BACKLINKS_N}})</button>
   </div>
+  <!-- Aa: the size of the text and the rest of what is set about it -- the
+       gear, opened at its Text group (static/gear.js).  The sliders that stood
+       here are rows of that panel now: one set, on every width. -->
   <button class="btn ghost typo-toggle" id="btn-typo" type="button" aria-expanded="false"
-          title="Text size, column width, spacing, theme and print">Aa</button>
-  <div class="typo-group" title="Size of the target-language script relative to the Latin text — the same knob as --scale in the PDF build">
-    <label for="sl-fa"><span id="lbl-fa">{{TARGET_NAME}}</span> <output id="out-fa">1.52×</output></label>
-    <input type="range" id="sl-fa" min="0.8" max="2.6" step="0.02" value="1.52">
-  </div>
-  <div class="typo-group" title="Base size of the Latin text">
-    <label for="sl-base">Latin <output id="out-base">17px</output></label>
-    <input type="range" id="sl-base" min="13" max="23" step="0.5" value="17">
-  </div>
-  <div class="typo-group" title="Width of the text column — follows the Latin size proportionally; drag it yourself to set your own ratio (the Latin size never moves with it)">
-    <label for="sl-width">Width <output id="out-width">720px</output></label>
-    <input type="range" id="sl-width" min="420" max="1400" step="1" value="720">
-  </div>
-  <div class="typo-group" title="Line spacing">
-    <label for="sl-lead">Leading <output id="out-lead">1.45</output></label>
-    <input type="range" id="sl-lead" min="1.15" max="2" step="0.05" value="1.45">
-  </div>
-  <div class="typo-group" title="Size of the big lemma headers">
-    <label for="sl-voce">Lemma <output id="out-voce">3.4×</output></label>
-    <input type="range" id="sl-voce" min="2.2" max="4.6" step="0.1" value="3.4">
-  </div>
-  <label class="check" title="Justified text with hyphenation, like the PDF"><input type="checkbox" id="ck-justify" checked> justify</label>
-  <select id="sel-theme" title="Page theme">
-    <option value="paper">Paper</option>
-    <option value="sepia">Sepia</option>
-    <option value="dark">Dark</option>
-  </select>
-  <button class="btn ghost" id="btn-typo-reset" title="Back to the PDF defaults">Reset</button>
+          title="The text: sizes, width, spacing — in this page's settings">Aa</button>
   <button class="btn ghost" id="btn-print" title="Print the web rendering">Print</button>
   <span class="typo-hint">click the target text to copy · hover it for its pronunciation · click an image, or ⚙ on a player, to lay it out</span>
   <button class="btn ghost bars-toggle" id="btn-bars" type="button" aria-expanded="true"
-          title="Put the bars away and give the whole window to the text">⌃ bars</button>
+          title="Put the bars away and give the whole window to the text">⌃ hide bars</button>
 </div>
 
 <!-- The way back, when the bars are away: small, faint and out of the
      reading column, until it is wanted.  It lives outside all three bars
      because all three are what it brings back. -->
 <button class="btn bars-show" id="btn-bars-show" type="button" hidden
-        aria-expanded="false" title="Bring the bars back">⌄ bars</button>
+        aria-expanded="false" title="Bring the bars back">⌄ show bars</button>
 
 <div class="layout">
   <div class="toc-backdrop" id="toc-backdrop" hidden></div>
@@ -208,6 +199,8 @@
 <!-- what the server is working on, on every page of the toolbox (lib/activity.js): serve.py's, so a studio run on its own has none -->
 <script src="/lib/activity.js" async></script>
 <script src="{{STUDIO}}/static/app.js"></script>
+<!-- the gear's rows: what this page's settings are, after the script that holds them -->
+<script src="{{STUDIO}}/static/gear.js"></script>
 <script src="{{STUDIO}}/static/latexwait.js" defer></script>
 </body>
 </html>

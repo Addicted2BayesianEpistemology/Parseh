@@ -295,23 +295,53 @@ body[data-page="doc"] .metabar { position: static; }
    many rows its controls wrap into; --sticky-h is measured at runtime and
    the literal is only the fallback for pages that have no toolbar. */
 .sheet h2, .sheet h3, .voce { scroll-margin-top: var(--sticky-h, 4.6rem); }
-.typo-group { display: flex; flex-direction: column; gap: .05rem; min-width: 130px; }
-.typo-group label { display: flex; justify-content: space-between; color: var(--chrome-mut); font-size: .74rem; }
-.typo-group output { font-variant-numeric: tabular-nums; color: var(--chrome-fg); }
 input[type="range"] { accent-color: var(--accent); width: 100%; margin: 0; }
 .typo-hint { color: var(--chrome-mut); font-size: .74rem; margin-left: auto; font-style: italic; }
+/* Aa, lit while the gear is open at it (static/gear.js) */
+.typo-toggle[aria-expanded="true"] { border-color: var(--accentlt); color: var(--accent); }
+
+/* ◐ AND ⚙, the last two of a browser bar's row (a0.5.0).  They are in a box of
+   their own because the row scrolls sideways under 561px on a document, and
+   a settings button that is a scroll away is not a button: the box is pinned to
+   the row's right edge, over what scrolls under it, the bar's own colour behind
+   it so that nothing shows through.  Wider, a sticky box has nowhere to stick
+   to and is the row's last two buttons. */
+.bar-tail {
+  display: inline-flex; align-items: center; gap: .4rem; flex: none;
+  position: sticky; right: 0; background: var(--chrome-panel);
+  padding-inline-start: .3rem;
+  /* the row wraps on the editor's bar and may leave the two on a line of their own: at its right end, then */
+  margin-left: auto;
+}
+.bar-theme { min-width: 2.1rem; justify-content: center; }
+/* A finger's 48px, for both: the toolkit makes the gear that size under 561px and
+   wherever the pointer is a finger, and ◐ is made to match.  The row they stand
+   in is taller by the difference (a pinned document bar on the narrowest phone
+   is a third of the screen, not a quarter: tests/studio_narrow.mjs) -- a button
+   that is hard to hit on a phone is worth more than twenty pixels of bar. */
+@media (max-width: 560px), (pointer: coarse) {
+  .bar-theme { min-width: 48px; min-height: 48px; }
+}
+/* The bar of the exercise pages (a deck, studying it, cramming it) wraps under 561px: the way home, the title,
+   the way back, Stop server and now ◐ and ⚙ are wider together than the narrowest phone (the document's bar
+   and the editor's wrap already, each in its own way, above). */
+@media (max-width: 560px) {
+  body:is([data-page="deck"], [data-page="study"], [data-page="cram"]) .topbar { flex-wrap: wrap; row-gap: .35rem; }
+}
 
 /* THE BARS, PUT AWAY BY HAND.  A reading page carries three of them -- the
-   topbar, the tags and the typography -- and a reader who has set the text
-   the way they want it wants the window back.  "⌃ bars" takes all three
-   away and leaves one small faint button in the corner to bring them back;
-   the choice is remembered for every document (app.js, bindBarsToggle).
+   topbar, the tags and the toolbar -- and a reader who has set the text
+   the way they want it wants the window back.  "⌃ hide bars" takes all three
+   away and leaves one small faint button in the corner to bring them back
+   ("⌄ show bars"); the choice is remembered for every document (app.js,
+   bindBarsToggle), and the gear's "Hide the bars" is the same switch.
    A phone puts the bars away by itself as the page moves down (barhidden);
-   this is the other thing, and it holds until it is undone.  There the
-   button rides with the typography controls, under "Aa": the phone's
-   toolbar is three short buttons on purpose, and a fourth would crowd the
-   row that a small screen can spare least. */
+   this is the other thing, and it holds until it is undone.  Under 561px
+   the button is not in the toolbar -- the phone's is three short buttons on
+   purpose, and a fourth would crowd the row that a small screen can spare
+   least -- but in the gear. */
 body.chrome-off .topbar,
+body.chrome-off .m-topbar,
 body.chrome-off .metabar,
 body.chrome-off .toolbar { display: none; }
 .bars-show {
@@ -907,9 +937,6 @@ body.links-open .linkspane { transform: none; visibility: visible; }
   box-shadow: 0 4px 16px rgba(0,0,0,.18);
 }
 
-/* the phone's way to the typography controls (app.js, bindTypoToggle) */
-.typo-toggle { display: none; }
-
 /* The bar gets out of the way on a phone: away as the page moves down, back
    on the smallest move up (app.js, bindBarHide) -- the same behaviour
    lib/parseh.js gives the rest of the toolbox, written again here because
@@ -924,8 +951,11 @@ body.links-open .linkspane { transform: none; visibility: visible; }
    the way back and the title, a row that scrolls sideways, with a menu
    hanging from the topbar's right end, under it, where the row's scrolling
    cannot cut it off; and the toolbar is Contents, Glosses and "Aa", which
-   opens the typography controls under them, wrapped as on a wide screen.
-   Wide screens see none of these rules. */
+   opens the gear at its Text group (a sheet over the foot of the screen, not
+   a row of sliders that would have made the bars half the screen).  ◐ and ⚙
+   are the topbar row's last two and stay where they are while the rest of
+   the row scrolls under them (.bar-tail).  Wide screens see none of these
+   rules. */
 @media (max-width: 560px) {
   .topbar, .toolbar { transition: transform .18s ease; }
   body.barhidden .topbar, body.barhidden .toolbar { transform: translateY(-100%); }
@@ -934,6 +964,9 @@ body.links-open .linkspane { transform: none; visibility: visible; }
   body[data-page="doc"] .topbar-actions {
     flex: 1 0 100%; margin-left: 0; flex-wrap: nowrap;
     overflow-x: auto; overscroll-behavior-x: contain; padding-block: 2px;
+    /* ◐ and ⚙ (.bar-tail) are pinned over the row's right end: a button the row
+       is scrolled to must stop short of them, not under them */
+    scroll-padding-inline-end: 7rem;
   }
   body[data-page="doc"] .topbar .dropdown { position: static; }
   body[data-page="doc"] .topbar .dropdown .menu { right: .9rem; }
@@ -942,11 +975,9 @@ body.links-open .linkspane { transform: none; visibility: visible; }
   /* Contents, Glosses and "Linked from" are wider than a phone: they wrap
      to a second row, beside "Aa" rather than above it, and the toolbar is
      packed close, so the two bars stay a small part of the screen */
-  body[data-page="doc"]:not(.typo-open) .toolbar { padding-block: .2rem; flex-wrap: nowrap; }
-  body[data-page="doc"]:not(.typo-open) .navstack { flex: 1 1 0; min-width: 0; }
-  body[data-page="doc"] .typo-toggle { display: inline-flex; }
-  body.typo-open[data-page="doc"] .typo-toggle { border-color: var(--accentlt); color: var(--accent); }
-  body[data-page="doc"]:not(.typo-open) .toolbar > :not(.navstack):not(.typo-toggle) { display: none; }
+  body[data-page="doc"] .toolbar { padding-block: .2rem; flex-wrap: nowrap; }
+  body[data-page="doc"] .navstack { flex: 1 1 0; min-width: 0; }
+  body[data-page="doc"] .toolbar > :not(.navstack):not(.typo-toggle) { display: none; }
   body.barhidden[data-page="doc"] .toolbar {
     transform: translateY(calc(-100% - var(--topbar-h, 0px)));
   }
@@ -1397,6 +1428,9 @@ body[data-page="edit"] figure.img:hover img { outline: none; }
   gap:10px;max-width:min(560px,94vw);padding:12px 14px;background:var(--chrome-panel);
   border:1px solid var(--accent);border-radius:12px;box-shadow:0 8px 24px rgba(0,0,0,.2);
   font-size:14.5px;line-height:1.4}
+/* the gear's sheet (lib/pagesettings.js) is at the foot of a phone's screen too, and this line
+   would stand over its last rows: it waits, as it does for the dictionary's sheet */
+html.pg-sheet .kp-bar{display:none}
 .kp-off{display:inline-flex;align-items:center;min-height:36px;padding:4px 12px;border-radius:20px;
   background:var(--warn);color:#fff;font-size:13px;text-decoration:none;white-space:nowrap}
 .kp-off:hover{opacity:.9}

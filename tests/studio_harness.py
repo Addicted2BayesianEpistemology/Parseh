@@ -48,10 +48,16 @@ import store      # noqa: E402
 # nor shut his Wi-Fi door by running.  Imported in BOTH modes: the studio
 # alone does not read it, but the assignment below runs either way.
 import network    # noqa: E402
+# and the owner's preferences (lib/prefs.py): a document, the editor and a deck
+# load lib/prefs.js since a0.5.0 (the theme follows a person), and a suite that
+# presses ◐ or the gear's Colours would write config/prefs.json -- the theme of
+# the owner's own pages -- through serve.py's /__prefs
+import prefs      # noqa: E402
 
 tmp = Path(tempfile.mkdtemp(prefix="parseh-studio-audio-test-"))
 store.LIB = tmp / "library"
 network.STORE = str(tmp / "config" / "network.json")
+prefs.STORE = str(tmp / "config" / "prefs.json")
 # and the LaTeX drawings' themes, their drawings and their packages
 import latexthemes, latexdraw, texpackages
 latexthemes.STORE = str(tmp / "config" / "latex.json")

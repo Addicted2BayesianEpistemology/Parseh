@@ -13,6 +13,12 @@
      it was — this mount's doors, this document's media. -->
 <link rel="stylesheet" href="{{STUDIO}}/static/app.css">
 <link rel="stylesheet" href="{{STUDIO}}/static/langs.css">
+<!-- THE GEAR (a0.5.0): the settings of this page in one panel, ⚙ in its bar
+     (static/gear.js says what is in it, after editor.js).  The toolkit is in
+     the head so that its sheet is on its way while the page draws; lib/prefs.js
+     lets the theme follow a person to their other devices. -->
+<script src="/lib/pagesettings.js"></script>
+<script src="/lib/prefs.js"></script>
 </head>
 <body data-page="edit" data-base="{{BASE}}" data-doc-id="{{DOC_ID}}" data-target="{{TARGET}}" data-decks-base="{{DECKS_BASE}}" data-notes-source="{{NOTES_SOURCE}}" data-names-mark="{{NAMES_MARK}}">
 <header class="topbar">
@@ -79,6 +85,10 @@
     <button class="btn primary" id="btn-save" title="⌘S / Ctrl+S">Save</button>
     <button class="btn" id="btn-save-view">Save &amp; view</button>
     <button class="btn danger ghost" id="btn-stop">Stop server</button>
+    <!-- ◐ AND ⚙, the last two (the gear is put after ◐ by static/gear.js) -->
+    <span class="bar-tail">
+      <button type="button" class="btn ghost bar-theme" data-parseh-theme title="theme: light / dark / sepia">◐</button>
+    </span>
   </div>
 </header>
 <div class="split">
@@ -117,5 +127,7 @@
      which only this page carries.  After app.js: they read its top-level names. -->
 <script src="{{STUDIO}}/static/exform.js"></script>
 <script src="{{STUDIO}}/static/editor.js"></script>
+<!-- the gear's rows, after the scripts that hold what they move -->
+<script src="{{STUDIO}}/static/gear.js"></script>
 </body>
 </html>

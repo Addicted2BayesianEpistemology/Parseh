@@ -670,12 +670,14 @@ async function suite(mode) {
     });
 
     /* ---------------- how it looks ---------------- */
+    // THE THEME IS THE DEVICE'S WORD WITH THE MOMENT IT WAS SAID (a0.5.0): the edit page loads lib/prefs.js, which brings the computer's
+    // value when that is the newer -- and an earlier context of this run has told this server a theme.  So each preset carries its moment.
     await section('c', 'at 1280 and 390 px in the three themes: inside the window, reachable', async () => {
       for (const [vw, vh] of [[1280, 800], [390, 844]]) {
         for (const theme of ['light', 'sepia', 'dark']) {
           const ctx = await context(t => { try { localStorage.setItem('parseh_theme', t); } catch (e) {} });
           const page = watch(await ctx.newPage(), `c-${vw}-${theme}`);
-          await page.addInitScript(t => { try { localStorage.setItem('parseh_theme', t); } catch (e) {} }, theme);
+          await page.addInitScript(t => { try { localStorage.setItem('parseh_theme', t); localStorage.setItem('parseh_at', JSON.stringify({parseh_theme: Date.now() / 1000})); } catch (e) {} }, theme);
           await page.setViewportSize({width: vw, height: vh});
           await page.goto(url('/prompt'));
           await page.waitForSelector('#prompt-boxes .pp-box'); await settle(page);
@@ -728,7 +730,7 @@ async function suite(mode) {
         for (const theme of ['light', 'sepia', 'dark']) {
           const ctx = await context();
           const page = await dialog(ctx, `c-dialog-${vw}-${theme}`, async p => {
-            await p.addInitScript(t => { try { localStorage.setItem('parseh_theme', t); } catch (e) {} }, theme);
+            await p.addInitScript(t => { try { localStorage.setItem('parseh_theme', t); localStorage.setItem('parseh_at', JSON.stringify({parseh_theme: Date.now() / 1000})); } catch (e) {} }, theme);
             await p.setViewportSize({width: vw, height: vh});
           });
           const g = await page.evaluate(() => {
@@ -756,8 +758,10 @@ async function suite(mode) {
     });
 
     await section('d', 'no page error, no console error, no native dialog, no refused request', async () => {
-      // THE STUDIO RUN ON ITS OWN has no /lib/ of the toolbox (the pages say so in a comment: lib/activity.js is serve.py's)
-      if (!base) forgive(/: 404 \/lib\/activity\.js$/);
+      // THE STUDIO RUN ON ITS OWN has no /lib/ of the toolbox (the pages say so in a comment: lib/activity.js is serve.py's;
+      // so is lib/prefs.js, which the edit page loads since a0.5.0 so that the theme follows a person -- the gear's own two
+      // files, which it answers for itself, are not asked for in vain)
+      if (!base) { forgive(/: 404 \/lib\/activity\.js$/); forgive(/: 404 \/lib\/prefs\.js$/); }
       eq(problems, [], 'every page of this run stayed quiet');
     });
   } finally {

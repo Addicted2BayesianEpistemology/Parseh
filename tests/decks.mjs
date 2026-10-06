@@ -2222,9 +2222,11 @@ import os, runpy, sys
 from pathlib import Path
 for p in ("youtube/lib", "lib", "markdown/exlex", "markdown/app"):
     sys.path.insert(0, os.path.join(os.getcwd(), p))
-import store, decks, clips
+import store, decks, clips, prefs
 tmp = Path(sys.argv[1])
 store.LIB = tmp / "library"
+# the owner's preferences: a deck loads lib/prefs.js since a0.5.0 (the theme follows a person)
+prefs.STORE = str(tmp / "config" / "prefs.json")
 decks.set_dir(tmp / "exercises")
 # every clip tray: an exercise naming a clip looks there, never in clips/
 decks.set_clips_dir(tmp / "clips")

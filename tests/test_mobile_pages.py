@@ -727,9 +727,18 @@ class DeckTests(unittest.TestCase):
             self.assertLess(head.index('/static/app.css'), head.index('/static/mobile.css'), name)
             p = parse(html)
             bars = [(w, a.get('class')) for w, t, a in p.els if t == 'header']
-            self.assertEqual(bars, [('browser', 'topbar'), ('mobile', 'm-topbar')], name)
             modes = [a['data-parseh-mode'] for t, a in p.of('mobile') if 'data-parseh-mode' in a]
-            self.assertEqual(modes, ['browser', 'mobile'], name)
+            if name in ('study.html', 'cram.html'):
+                # a0.5.0: no bar over the exercise on a phone, so nothing of the bar's is
+                # in the page -- the gear (static/gear.js) stands in the row of its title
+                self.assertEqual(bars, [('browser', 'topbar')], name)
+                self.assertEqual(modes, [], name)
+                self.assertFalse(any('data-parseh-theme' in a for t, a in p.of('mobile')), name)
+                continue
+            self.assertEqual(bars, [('browser', 'topbar'), ('mobile', 'm-topbar')], name)
+            # a0.5.0: a deck has a gear after the theme, and the Browser | Mobile switch is in
+            # the gear's Interface group; the list of decks has no gear and keeps its switch
+            self.assertEqual(modes, ['browser', 'mobile'] if name == 'decks.html' else [], name)
             self.assertTrue(any('data-parseh-theme' in a for t, a in p.of('mobile')), name)
             self.assertTrue(any(t == 'a' and a.get('href') == '/' for t, a in p.of('mobile')), name)
 
@@ -775,8 +784,9 @@ class DeckTests(unittest.TestCase):
             self.assertEqual(len(back), 1, name)
             self.assertEqual(back[0].get('data-layout'), 'mobile', name)
             self.assertIn('dk-back', back[0]['class'].split(), name)
-        css = (ROOT / 'markdown' / 'app' / 'static' / 'mobile.css').read_text(encoding='utf-8')
-        self.assertIn('html[data-mode=mobile] body:is([data-page=study],[data-page=cram]) .m-topbar{display:none}', css)
+        # and no bar in the templates either (it was a hidden copy, with the switch in it, once)
+        for name in ('study.html', 'cram.html'):
+            self.assertNotIn('m-topbar', rendered(name), name)
         # Next rates as the answer says: the rating the bar was shown for
         js = (ROOT / 'markdown' / 'app' / 'static' / 'decks.js').read_text(encoding='utf-8')
         self.assertIn('btnNext.dataset.rating = focus;', js)
