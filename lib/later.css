@@ -1,0 +1,204 @@
+/* SPDX-License-Identifier: GPL-3.0-or-later */
+/* Parseh — review later: the header button, the sidebar, the phone's sheet, the
+   «removed · Undo» line and the page's list (lib/later.js, lib/laterpage.py).
+
+   Every colour is one of parseh.css's tokens, with the plain colour of the
+   light theme behind it, so that the three themes -- light, dark and the
+   sepia paper -- carry over with nothing written here for any of them, and so
+   that a page that loads this file without the palette (a test page) is still
+   readable.  Text is --ink or --dim, never --faint, which is a hint's colour
+   and is not 4.5:1 on any ground.
+
+   NO VIEWPORT UNITS in a box that is fixed to the screen (vw, vh, dvh):
+   lib/pagezoom.js scales the whole page, and a box sized in the screen's own
+   units would be the wrong size at any zoom.  A fixed box is sized in
+   percentages of the screen it is fixed to, and its top is a variable the page
+   may set (--later-top, else --headh: the reader's header's height, as its
+   contents panel uses). */
+
+/* ---------------------------------------------------- the button «⚑ later 3» */
+/* NO TEXT IS DRAWN IN THE ACCENT COLOUR HERE.  The accent is 4.4:1 on the sepia
+   paper's own ground (--bg), and a button sits on --bg: hover and pressed are
+   said by the border (and a ring), and the one thing the accent colours is the
+   flag itself, which is a picture and wants 3:1. */
+.later-btn{font:inherit;font-size:13px;display:inline-flex;align-items:center;padding:5px 10px;
+  border:1px solid var(--rule,#e3d9dd);background:var(--bg,#f3eff1);color:var(--ink,#241e21);
+  border-radius:6px;cursor:pointer;white-space:nowrap;-webkit-tap-highlight-color:transparent}
+.later-btn:hover{border-color:var(--accent,#be3455)}
+.later-btn[aria-expanded=true]{border-color:var(--accent,#be3455);box-shadow:inset 0 0 0 1px var(--accent,#be3455)}
+.later-btn .lb-glyph{color:var(--accent,#be3455)}
+.later-btn .lb-n{font-variant-numeric:tabular-nums;font-weight:600}
+.later-btn .lb-n:empty{display:none}
+html[data-mode=mobile] .later-btn{min-height:48px;min-width:48px;justify-content:center}
+@media (pointer:coarse){.later-btn{min-height:48px;min-width:48px;justify-content:center}}
+
+/* -------------------------------------------------------------- the sidebar
+   A right-hand panel like the reader's contents panel: under the header, the
+   backdrop starting below it so that play and the passes stay live.  On a
+   phone, a sheet from the foot of the screen. */
+.lp-wrap{position:fixed;left:0;right:0;bottom:0;top:var(--later-top,var(--headh,0px));z-index:60;
+  font:14px/1.5 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,system-ui,sans-serif;
+  color:var(--ink,#241e21);text-align:left;direction:ltr}
+/* no blue flash over a button a finger has just pressed */
+.lp-wrap,.lp-main,.ls{-webkit-tap-highlight-color:transparent}
+.lp-wrap[hidden]{display:none}
+.lp-back{position:absolute;inset:0;background:rgba(0,0,0,.28)}
+.lp-panel{position:absolute;top:0;bottom:0;right:0;width:min(420px,100%);display:flex;flex-direction:column;
+  background:var(--card,#fff);border-left:1px solid var(--rule,#e3d9dd);border-top:1px solid var(--rule,#e3d9dd);
+  box-shadow:0 8px 28px rgba(0,0,0,.22);outline:none}
+.lp-head{flex:0 0 auto;position:relative;display:flex;align-items:center;gap:8px;padding:8px 8px 6px 16px;
+  border-bottom:1px solid var(--rule,#e3d9dd)}
+.lp-title{flex:0 1 auto;margin:0;font-size:16px;font-weight:600;line-height:1.3}
+.lp-count{flex:1 1 auto;font-size:13px;font-weight:600;font-variant-numeric:tabular-nums;color:var(--ink,#241e21)}
+.lp-count:empty{display:none}
+.lp-title+.lp-count::before{content:'·';margin-inline-end:8px;font-weight:400}
+.lp-head .lp-x{margin-inline-start:auto}
+.lp-grip{display:none;position:absolute;top:6px;left:50%;width:40px;height:4px;margin-left:-20px;
+  border-radius:2px;background:var(--faint,#a2949a)}
+.lp-x{flex:0 0 auto;min-width:36px;min-height:36px;margin:0;padding:0;font:inherit;font-size:17px;line-height:1;
+  border:1px solid transparent;border-radius:8px;background:transparent;color:var(--dim,#635358);cursor:pointer}
+.lp-x:hover{color:var(--ink,#241e21);border-color:var(--accent,#be3455)}
+
+/* THE PHONE'S SHEET: as tall as what it holds, up to 86% of the screen, with
+   the head fixed and the list the one thing that scrolls; room under it for
+   the home indicator.  Over the page's own sheets and docks (the dictionary's
+   is 300), under the toast. */
+.lp-wrap.lp-sheet{top:0;z-index:290}
+.lp-sheet .lp-back{background:rgba(0,0,0,.34);touch-action:none}
+.lp-sheet .lp-panel{top:auto;left:0;right:0;margin:0 auto;width:min(560px,100%);max-height:86%;
+  border:0;border-radius:16px 16px 0 0;box-shadow:0 -6px 28px rgba(0,0,0,.22);
+  padding:0 env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)}
+.lp-sheet .lp-grip{display:block}
+.lp-sheet .lp-head{padding-top:16px}
+.lp-sheet .lp-x{min-width:48px;min-height:48px}
+
+/* ------------------------------------------------------------ the tools */
+.lp-view{flex:1 1 auto;min-height:0;display:flex;flex-direction:column}
+.lp-tools{flex:0 0 auto;display:flex;flex-direction:column;gap:8px;padding:8px 12px;
+  border-bottom:1px solid var(--rule,#e3d9dd)}
+.lp-scope{display:inline-flex;align-self:flex-start;border:1px solid var(--rule,#e3d9dd);border-radius:8px;
+  overflow:hidden}
+.lp-sc{font:inherit;font-size:13px;margin:0;padding:6px 12px;border:0;background:transparent;
+  color:var(--dim,#635358);cursor:pointer}
+.lp-sc+.lp-sc{border-inline-start:1px solid var(--rule,#e3d9dd)}
+.lp-sc[aria-pressed=true]{background:var(--accent,#be3455);color:var(--accent-fg,#fff)}
+.lp-row{display:flex;flex-wrap:wrap;gap:6px}
+.lp-b{font:inherit;font-size:13px;margin:0;padding:6px 12px;border:1px solid var(--rule,#e3d9dd);
+  background:var(--bg,#f3eff1);color:var(--ink,#241e21);border-radius:8px;cursor:pointer}
+.lp-b:hover{border-color:var(--accent,#be3455)}
+.lp-b[aria-expanded=true]{border-color:var(--accent,#be3455);box-shadow:inset 0 0 0 1px var(--accent,#be3455)}
+.lp-b[aria-pressed=true]{background:var(--accent,#be3455);border-color:var(--accent,#be3455);color:var(--accent-fg,#fff)}
+.lp-b[hidden],.lp-chooser[hidden],.lp-status[hidden]{display:none}
+.lp-chooser{display:flex;flex-wrap:wrap;gap:6px}
+.lp-status{margin:0;font-size:13px;line-height:1.45;color:var(--dim,#635358)}
+
+/* ------------------------------------------------------------- the list */
+.lp-body{flex:1 1 auto;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;
+  padding-bottom:12px}
+.lp-items{list-style:none;margin:0;padding:0}
+.lp-gh{position:sticky;top:0;z-index:1;display:flex;align-items:baseline;flex-wrap:wrap;gap:4px 10px;
+  padding:8px 14px 6px;background:var(--card,#fff);border-bottom:1px solid var(--rule,#e3d9dd)}
+.lp-gt{margin:0;font-size:14px;font-weight:600;line-height:1.4}
+.lp-gname{color:inherit;text-decoration:none;unicode-bidi:isolate}
+a.lp-gname:hover{text-decoration:underline}
+.lp-gm{font-size:12.5px;color:var(--dim,#635358)}
+
+.lr{display:flex;flex-wrap:wrap;gap:6px;align-items:flex-start;padding:10px 12px 10px 14px;
+  border-bottom:1px solid var(--rule,#e3d9dd)}
+.lr-body{flex:1 1 0;min-width:0}
+/* the chunk, in its language's face, isolated so that a Persian or an Arabic
+   one cannot turn the line around it; its own direction is the element's `dir` */
+.lr-text{display:block;font-family:var(--tl-font,inherit);font-size:19px;line-height:1.7;text-align:start;
+  unicode-bidi:isolate;overflow-wrap:anywhere}
+.lr-gloss{margin:0}
+.lr-gl{display:block;max-width:100%;margin:0;padding:2px 0;font:inherit;font-size:13.5px;line-height:1.5;
+  text-align:start;border:0;background:none;color:var(--dim,#635358);cursor:pointer;white-space:nowrap;
+  overflow:hidden;text-overflow:ellipsis}
+.lr-gl:hover{color:var(--ink,#241e21)}
+.lr-more{display:none}
+.lr-open .lr-gl{display:none}
+.lr-open .lr-more{display:block}
+.lr-g{margin:2px 0;font-size:13.5px;line-height:1.5;color:var(--dim,#635358);overflow-wrap:anywhere}
+.lr-kana,.lr-sentence{font-family:var(--tl-font,inherit);font-size:16px;line-height:1.7;color:var(--ink,#241e21)}
+.lr-tr{font-style:italic;color:var(--ink,#241e21)}
+.lr-voc{white-space:pre-line}
+.lr-fold{margin:2px 0 0;padding:2px 6px;font:inherit;font-size:12.5px;border:0;border-radius:6px;background:none;
+  color:var(--dim,#635358);cursor:pointer}
+.lr-fold:hover{color:var(--ink,#241e21);text-decoration:underline}
+.lr-none{margin:2px 0;font-size:13px;font-style:italic;color:var(--dim,#635358)}
+.lr-meta{margin-top:2px;font-size:12.5px;color:var(--dim,#635358)}
+.lr-place+.lr-age::before{content:' · '}
+.lr-why{margin:4px 0 0;font-size:13px;color:var(--danger,#9b3327)}
+.lr-adrift .lr-text{opacity:.85}
+/* the flag a link pointed at, lit for a moment (no animation: nothing to turn off for reduced motion) */
+.lr-flash{background:var(--hl,#f7dde5)}
+
+.lr-acts{flex:0 0 auto;display:flex;flex-wrap:wrap;justify-content:flex-end;align-items:center;gap:4px;
+  max-width:150px}
+.lr-b{box-sizing:border-box;min-width:34px;min-height:34px;margin:0;padding:4px 9px;font:inherit;font-size:13px;
+  display:inline-flex;align-items:center;justify-content:center;border:1px solid var(--rule,#e3d9dd);
+  background:var(--bg,#f3eff1);color:var(--ink,#241e21);border-radius:8px;cursor:pointer;text-decoration:none}
+.lr-b:hover:not(:disabled){border-color:var(--accent,#be3455)}
+.lr-b:disabled{opacity:.45;cursor:not-allowed}
+.lr-x{color:var(--dim,#635358)}
+.lr-know{background:var(--accent,#be3455);border-color:var(--accent,#be3455);color:var(--accent-fg,#fff)}
+.lr-know:hover:not(:disabled){color:var(--accent-fg,#fff);filter:brightness(1.08)}
+
+/* TEST MYSELF: the chunk alone, the meaning behind a tap, and two buttons */
+.lr-hit{cursor:pointer;border-radius:8px}
+.lr-tap{display:block;font-size:13px;color:var(--dim,#635358)}
+.lr-test .lr-acts{flex:1 1 100%;max-width:none;justify-content:flex-start}
+
+.lp-empty{padding:18px 16px}
+.lp-empty-h{margin:0 0 6px;font-size:15px;font-weight:600;color:var(--ink,#241e21)}
+.lp-empty-how{margin:0 0 12px;font-size:14px;line-height:1.55;color:var(--dim,#635358)}
+
+.lp-wrap :focus-visible,.lp-main :focus-visible,.ls :focus-visible,.later-btn:focus-visible{
+  outline:2px solid var(--accent,#be3455);outline-offset:2px}
+
+/* a finger's height: the mobile layout, a touch screen, and the sheet itself */
+html[data-mode=mobile] .lr,.lp-sheet .lr{min-height:48px}
+html[data-mode=mobile] .lr-b,html[data-mode=mobile] .lp-b,html[data-mode=mobile] .lp-sc,
+.lp-sheet .lr-b,.lp-sheet .lp-b,.lp-sheet .lp-sc{min-height:48px}
+html[data-mode=mobile] .lr-b,.lp-sheet .lr-b{min-width:48px}
+html[data-mode=mobile] .lr-gl,.lp-sheet .lr-gl,html[data-mode=mobile] .lr-fold,.lp-sheet .lr-fold{min-height:36px}
+@media (pointer:coarse){
+  .lr{min-height:48px}
+  .lr-b,.lp-b,.lp-sc{min-height:48px}
+  .lr-b{min-width:48px}
+  .lr-gl,.lr-fold{min-height:36px}
+  .lp-x{min-width:48px;min-height:48px}
+}
+
+/* ------------------------------------------------------- «removed · Undo» */
+.ls{position:fixed;left:50%;bottom:calc(16px + env(safe-area-inset-bottom,0px));z-index:410;
+  display:flex;align-items:center;gap:6px;max-width:calc(100% - 24px);box-sizing:border-box;
+  padding:6px 6px 6px 14px;border-radius:10px;background:var(--ink,#241e21);color:var(--card,#fff);
+  font:14px/1.4 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,system-ui,sans-serif;
+  box-shadow:0 6px 22px rgba(0,0,0,.28);opacity:0;pointer-events:none;transform:translate(-50%,16px);
+  transition:opacity .15s ease,transform .15s ease}
+.ls.ls-show{opacity:1;pointer-events:auto;transform:translate(-50%,0)}
+.ls-undo{min-width:64px;min-height:44px;margin:0;padding:0 14px;font:inherit;font-weight:600;
+  border:1px solid currentColor;border-radius:8px;background:transparent;color:inherit;cursor:pointer}
+.ls-undo[hidden]{display:none}
+.ls-undo:hover{background:rgba(127,127,127,.25)}
+@media (prefers-reduced-motion:reduce){.ls{transition:none}}
+
+/* --------------------------------------------------------- the page /later/
+   The list is the page's own, and the page scrolls: the tools stay at the
+   top of it, each book's or video's chunks are a card, and the mobile layout
+   gives the column the hub's width and the rows a finger's height. */
+/* the heading's own colour is the hint colour (--faint, 2.5:1): this page's is the secondary text's */
+.lp-main h1.idx{color:var(--dim,#635358)}
+.lp-main .lp-view{display:block;min-height:0}
+.lp-main .lp-tools{padding:0 0 12px;border-bottom:0}
+.lp-main .lp-body{overflow:visible;padding-bottom:0}
+.lp-main .lp-group{margin:0 0 16px;background:var(--card,#fff);border:1px solid var(--rule,#e3d9dd);
+  border-radius:12px;overflow:hidden}
+.lp-main .lp-gh{position:static}
+.lp-main .lr:last-child{border-bottom:0}
+.lp-main .lr-text{font-size:20px}
+.lp-main .lp-empty{padding:18px 0}
+.lp-main .lp-status{font-size:13.5px}
+html[data-mode=mobile] .lp-main{max-width:var(--m-col,480px);margin:0 auto;padding:12px 16px 72px}
+html[data-mode=mobile] .lp-main h1.idx{margin:6px 0 2px}

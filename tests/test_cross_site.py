@@ -145,6 +145,8 @@ WRITES = (
     ("POST", "/settings/api/code"),
     ("POST", "/settings/api/pair"),
     ("POST", "/__prefs"),
+    # the chunks flagged to review later (a0.5.0): the person's own list, kept beside the reading place
+    ("POST", "/__later"),
     ("POST", "/__shutdown"),
     ("POST", "/lookup/api/getdict"),
     ("POST", "/lookup/api/dropdict"),

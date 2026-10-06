@@ -158,6 +158,8 @@ import texwrite            # noqa: E402  one chunk of a chapter, edited in place
 import glossregion         # noqa: E402  a region glossed by an LLM: the prompt, the answer put back
 import reading              # noqa: E402  what somebody decided about the text itself
 import prefs                # noqa: E402  the reading place and the settings that follow a person
+import later                # noqa: E402  the chunks a person flagged to review later: the same file, its own door (a0.5.0)
+import laterpage            # noqa: E402  /later/, the flags across every book and video
 import network              # noqa: E402  who may reach this Parseh, and on which port (§1.1, §3.3)
 import crosssite            # noqa: E402  and that only its own pages may write to it (§3.1)
 import settingspage         # noqa: E402  the Settings section, and the page a device not let in sees
@@ -500,6 +502,10 @@ STATIC_FILES = {"/lib/lmlikelihoodsettings.js", "/lib/llmsettings.js", "/youtube
                 # parseh.js writes its tag, and the studio's templates carry one
                 # (lib/pagezoom.js, a0.5.0)
                 "/lib/pagezoom.js",
+                # the chunks flagged to review later: the store, the sidebar and
+                # the page's list (lib/later.js, lib/later.css; the reader and the
+                # player load them, and so does /later/)
+                "/lib/later.js", "/lib/later.css",
                 # keeping a thing on the phone, and saying when the computer
                 # cannot be reached (lib/keep.js, TO-DO §19.2, §19.5)
                 "/lib/keep.js",
@@ -1075,6 +1081,22 @@ def count_tag(counts, key, fmt, total, on=True):
         esc(per["all"]))
 
 
+def later_tag():
+    """What the Review later door says: how many chunks are flagged, told to
+    follow the language chips like every other count on the hub -- a chip
+    answers with how many of ITS language's chunks are flagged -- and "nothing
+    marked yet" where there are none.  The flags are the person's own (lib/
+    later.py), and a phone that flagged some away from the computer sends them
+    when it can, so this is what the computer holds."""
+    try:
+        per, total = later.by_language()
+    except Exception:
+        per, total = {}, 0
+    counts = {L.code: {"later": per.get(L.code, 0)} for L in languages.LANGS.values()}
+    return count_tag(counts, "later", lambda k: n(k, "chunk") if k else "nothing marked yet",
+                     total, on=total > 0)
+
+
 def mode_switch():
     """The switch between the browser and the mobile interface, for a page's
     top bar (lib/mobile.py writes it, for its own pages too)."""
@@ -1194,6 +1216,16 @@ def hub_page():
     </a>
   </div>
   <div class="row2">
+    <!-- REVIEW LATER (a0.5.0): the chunks flagged while reading or watching,
+         on both layouts -- it is for studying, and a phone may flag, list,
+         go to, remove, test itself and copy (docs/mobile.md) -->
+    <a class="door wide" href="/later/">
+      <div class="dname">&#9873; Review later</div>
+      <div class="dwhat">The chunks you flagged while reading or watching, to come
+      back to: go to each one in its book or video, test yourself on them, or make
+      the cards.</div>
+      <div class="tags">%(nlater)s</div>
+    </a>
     <a class="door wide" href="/anki/sync/">
       <div class="dname">&#8646; Anki</div>
       <div class="dwhat">The card store both readers write into. Made cards all
@@ -1275,6 +1307,14 @@ def hub_page():
         </div>
         <div class="m-dfa" lang="fa" data-lang="fa">&#x62A;&#x645;&#x631;&#x6CC;&#x646;&#x200C;&#x647;&#x627;</div>
       </a>
+      <a class="m-door" href="/later/">
+        <div class="m-dtext">
+          <div class="m-dname">Review later</div>
+          <div class="m-dwhat">The chunks you flagged, to come back to</div>
+          <div class="m-tags">%(nlater)s</div>
+        </div>
+        <div class="m-dfa" lang="fa" data-lang="fa">&#x628;&#x639;&#x62F;&#x627;&#x64B;</div>
+      </a>
     </nav>
     <div class="m-more-doors">
     <a class="m-door m-guide" href="/guide/">
@@ -1331,6 +1371,9 @@ def hub_page():
                             int(dk.get("decks") or 0)),
        "nxdue": count_tag(counts, "due", lambda k: "%d due" % k,
                           int(dk.get("due") or 0), on=False),
+       # the chunks flagged to review later: one count, whatever the chips say
+       # until one is picked (a0.5.0)
+       "nlater": later_tag(),
        # the card store underneath is one store, not one per language
        "ncards": n(int(yt.get("cards") or 0), "card"),
        "ndecks": n(int(yt.get("decks") or 0), "deck"), "addrs": addrs,
@@ -3247,6 +3290,56 @@ class Handler(SimpleHTTPRequestHandler):
             except (ValueError, OSError) as e:
                 return self.send_json({"ok": False, "error": str(e)}, 400)
             return self.send_json(out)
+        if path == "/__later":
+            # THE CHUNKS A PERSON FLAGGED TO REVIEW LATER (lib/later.py, a0.5.0).
+            # The same file as the reading place, its own door, so that they do
+            # not ride on every page load: a reader or a player asks for its
+            # own book's (?ref=), the hub's page for the counts, the list page
+            # for everything -- and a device that syncs asks for the removals
+            # too (?tomb=1), which is how it knows what not to bring back.
+            # Written the way the settings are: any device that has been let
+            # in may flag a chunk, which changes nothing but this list.
+            if method == "GET":
+                q = self.query
+                tomb = (q.get("tomb") or [""])[0] in ("1", "true")
+                try:
+                    if q.get("ref"):
+                        ref = later.check_ref(q["ref"][0])
+                        return self.send_json({"ok": True, "ref": ref, "now": time.time(),
+                                               "items": later.all_of(ref, tomb)})
+                    if (q.get("counts") or [""])[0] in ("1", "true"):
+                        return self.send_json({"ok": True, "now": time.time(), **later.counts()})
+                    if (q.get("all") or [""])[0] in ("1", "true"):
+                        return self.send_json({"ok": True, "now": time.time(),
+                                               "items": later.all_of(None, tomb)})
+                except ValueError as e:
+                    return self.send_json({"ok": False, "error": str(e)}, 400)
+                return self.send_json({"ok": False, "error": "say which flags: ?ref=<a book's reader path "
+                                       "or a video's id>, ?counts=1 or ?all=1 (and &tomb=1 for the removals too)"},
+                                      400)
+            if method != "POST":
+                return self._method_not_allowed()
+            body = self._json_body()
+            try:
+                out = later.apply_ops(body.get("ops"), str(body.get("by") or ""))
+            except ValueError as e:
+                # in words, and nothing was applied: the page learns that
+                # these changes can never be taken, and stops sending them
+                return self.send_json({"ok": False, "error": str(e)}, 400)
+            except OSError as e:
+                # NOT a 400: the disk is the computer's trouble, and a page
+                # that took it for a bad body would throw away what it holds
+                return self.send_json({"ok": False, "error": "the flags could not be kept: %s" % e}, 500)
+            return self.send_json({"ok": True, **out})
+        if path in ("/later", "/later/", "/later/index.html"):
+            # /later/: every flagged chunk, across every book and video, each
+            # opening at its chunk (lib/laterpage.py).  Both layouts in one page,
+            # drawn by lib/later.js from the door above and the device's own copy
+            if method != "GET":
+                return self._method_not_allowed()
+            if path != "/later/":
+                return self._redirect("/later/")
+            return self.send_html(laterpage.page())
         if path == "/settings" or path.startswith("/settings/"):
             return self._settings(method, path)
         if path == "/__activity":

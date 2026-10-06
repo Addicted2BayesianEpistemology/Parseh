@@ -352,13 +352,13 @@ async function partShelf() {
     await tap(page, '.parseh-bar:not(.m-bar) [data-parseh-mode=mobile]');
     eq(await page.evaluate(() => document.documentElement.getAttribute('data-mode')), 'mobile', 'Mobile pressed on the hub');
     if (tag === 'landscape') {
-      // four doors, two to a row; the guide and the app's door under them
+      // five doors (the four, and Review later after them), two to a row; the guide and the app's door under them
       await settle(page);
       await shot(page, 'hub-landscape');
       const doors = await page.evaluate(() => [...document.querySelectorAll('.m-doors a.m-door')]
         .map(d => { const r = d.getBoundingClientRect(); return [Math.round(r.top), Math.round(r.left)]; }));
-      assert(doors.length === 4 && doors[0][0] === doors[1][0] && doors[2][0] === doors[3][0] &&
-             doors[2][0] > doors[0][0] && doors[1][1] > doors[0][1],
+      assert(doors.length === 5 && doors[0][0] === doors[1][0] && doors[2][0] === doors[3][0] &&
+             doors[2][0] > doors[0][0] && doors[4][0] > doors[2][0] && doors[1][1] > doors[0][1],
              'sideways: the hub\'s doors two to a row ' + JSON.stringify(doors));
       assert(await sideways(page) <= 0, 'and the hub does not scroll sideways');
     }

@@ -124,14 +124,14 @@ class HubTests(unittest.TestCase):
 
     def test_the_browser_layout_keeps_every_door(self):
         got = self.hrefs('browser')
-        for href in ('/books/', '/youtube/', '/studio/', '/exercises/', '/anki/sync/', '/clips/',
+        for href in ('/books/', '/youtube/', '/studio/', '/exercises/', '/later/', '/anki/sync/', '/clips/',
                      '/settings/reading-help/', '/guide/', '/'):
             self.assertIn(href, got)
         self.assertTrue(any('data-parseh-stop' in a for t, a in self.page.of('browser')))
         self.assertTrue(any(a.get('class') == 'addr' for t, a in self.page.of('browser')))
         # the doors are still written as the other tests read them, and the
         # first of each is the browser layout's
-        for href in ('/books/', '/studio/', '/exercises/', '/settings/reading-help/'):
+        for href in ('/books/', '/studio/', '/exercises/', '/later/', '/settings/reading-help/'):
             m = re.search(r'<a class="door(?: wide)?" href="%s">' % re.escape(href), self.html)
             self.assertIsNotNone(m, href)
             self.assertLess(self.html.index('class="hub-browser"'), m.start())
@@ -143,8 +143,10 @@ class HubTests(unittest.TestCase):
         # ones that leave Parseh: lib/author.py -- Parseh's repository and his site)
         import author
         import project
-        self.assertEqual(self.hrefs('mobile'), ['/', '/books/', '/youtube/', '/studio/', '/exercises/', '/guide/',
-                                                '/m/install/', '/licences/', project.GITHUB_URL, author.SITE_URL])
+        # (and the chunks flagged to review later, a door for studying: a phone
+        # may flag, list, go to, remove, test itself and copy -- lib/later.js)
+        self.assertEqual(self.hrefs('mobile'), ['/', '/books/', '/youtube/', '/studio/', '/exercises/', '/later/',
+                                                '/guide/', '/m/install/', '/licences/', project.GITHUB_URL, author.SITE_URL])
         els = self.page.of('mobile')
         buttons = [a.get('data-parseh-mode') or ('theme' if 'data-parseh-theme' in a else a.get('data-pick'))
                    for t, a in els if t == 'button']

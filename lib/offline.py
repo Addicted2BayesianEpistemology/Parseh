@@ -94,6 +94,10 @@ SHARED = (
     # page and the studio's templates carry a tag of their own for: a kept page
     # must open offline with it, or its parser stops on a script nobody kept
     "/lib/pagezoom.js",
+    # the chunks flagged to review later: the store, the sidebar and the page's
+    # list.  The reader and the player load them, and /later/ is in the shell:
+    # without them a phone could flag a chunk on the train and not see the list
+    "/lib/later.js", "/lib/later.css",
     # what a reader of a book an agent is making adds to itself (parseh.js loads it
     # into every reader; it asks one question and does nothing for any other book)
     "/lib/making.js",
@@ -1264,7 +1268,11 @@ def notes_group(mount, notes, studio_base="/studio"):
 # built already is.  What they SAY, though, is yesterday's, so lib/sw.js reads
 # each of them again behind the page and the page puts the fresh list in place
 # of the one it opened with.
-SHELL_PAGES = ("/", "/?mode=mobile", "/m/books/", "/m/videos/", "/m/kept/", "/m/offline/")
+SHELL_PAGES = ("/", "/?mode=mobile", "/m/books/", "/m/videos/", "/m/kept/", "/m/offline/",
+               # the hub's Review later door opens it: an empty frame that lib/later.js
+               # fills from the phone's own copy of the flags, so it opens with the
+               # computer away and lists what was flagged on the train
+               "/later/")
 
 # The lists those two library pages draw themselves from: they are not written
 # into the page, they are asked for.  The worker gives them the computer's
