@@ -305,14 +305,13 @@ async function suite(browser, mode, tmp) {
     const page = await ctx.newPage();
     watch(page, 'doc');
     await page.goto(url(`${S}/doc/${doc.id}`));
-    // THE STUDIO SHOWING DARK as it makes the page, by its own Aa: what the
+    // THE STUDIO SHOWING DARK as it makes the page, by its own ◐ (the bar's
+    // one theme button; the sheet has no menu of its own any more): what the
     // studio shows is its reader's, and the file must start on Sepia anyway
     // (below, for both files -- the deck's page follows the studio's theme)
-    const typoShut = !(await page.locator('#sel-theme').isVisible());
-    if (typoShut) await page.click('#btn-typo');
-    await page.selectOption('#sel-theme', 'dark');
+    for (let i = 0; i < 3 && (await page.evaluate(() => document.body.dataset.theme)) !== 'dark'; i++)
+      await page.click('.topbar [data-parseh-theme]');
     eq(await page.evaluate(() => document.body.dataset.theme), 'dark', 'the studio is showing Dark as it exports');
-    if (typoShut) await page.click('#btn-typo');
     await page.click('details.dropdown > summary:text-is("Download ▾")');
     const entries = await page.locator('details.dropdown[open] .menu a').evaluateAll(as => as.map(a => a.id || a.textContent.trim()));
     eq(entries.slice(entries.indexOf('dl-pdf'), entries.indexOf('dl-pdf') + 2), ['dl-pdf', 'dl-html'],

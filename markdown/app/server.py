@@ -1034,6 +1034,24 @@ def serve_llmrow_js(h):
                  {"Cache-Control": "no-cache"})
 
 
+def serve_gear_file(h, name):
+    """The gear's two files (lib/pagesettings.js and its sheet): the panel every
+    page of Parseh opens for its own settings, a0.5.0.
+
+    The studio's document, editor and exercise pages link them as
+    /lib/pagesettings.js, which is the toolbox's own when the studio is mounted
+    in it.  Run on its own the studio has no /lib/, and without these two its
+    pages would have no way to set the text at all -- the sliders that stood
+    in the document's toolbar are rows of that panel now -- so they are
+    answered for here, as llmrow.js is."""
+    ctype = "text/css" if name.endswith(".css") else "text/javascript"
+    try:
+        data = (LIB / name).read_bytes()
+    except OSError:
+        return h.send_json({"error": "not found"}, 404)
+    h.send_bytes(data, ctype + "; charset=utf-8", 200, {"Cache-Control": "no-cache"})
+
+
 def serve_prompt_options(h):
     """The choices a person makes for one prompt, which the row (lib/llmrow.js)
     draws beside the copy button: the scheme of the transliteration.  The
@@ -2540,6 +2558,7 @@ ROUTES = [
     ("GET",    r"^/static/app\.css$",                     serve_app_css),
     ("GET",    r"^/static/app\.js$",                      serve_app_js),
     ("GET",    r"^/lib/llmrow\.js$",                      serve_llmrow_js),
+    ("GET",    r"^/lib/(pagesettings\.(?:js|css))$",      serve_gear_file),
     ("GET",    r"^/__prompt/options$",                    serve_prompt_options),
     ("GET",    r"^/static/mathjax\.js$",                  serve_math_js),
     ("GET",    r"^/static/mathjax\.css$",                 serve_math_css),

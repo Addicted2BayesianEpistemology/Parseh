@@ -122,8 +122,11 @@ class NotePage(unittest.TestCase):
         page carries for WRITING one."""
         _meta, html = self.html(PLAIN)
         got = self.loads(html)
+        # (a0.5.0: nor the gear -- a note is read over a book or a video, which have
+        # their own, and a bare page has no bar to hold one)
         for name in ("app.js", "exform.js", "mode.js", "editor.js",
-                     "keep.js", "explain.js", "activity.js", "app.css"):
+                     "keep.js", "explain.js", "activity.js", "app.css",
+                     "gear.js", "pagesettings.js", "pagesettings.css", "prefs.js"):
             self.assertFalse([u for u in got if u.endswith("/" + name)],
                              "%s must not be loaded by a note: %s" % (name, got))
         # and no script of its own either: what it runs is inline

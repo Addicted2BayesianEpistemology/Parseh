@@ -539,54 +539,27 @@ function modeSet(m) {
   document.cookie = `${MODE_KEY}=${m}; Path=/; SameSite=Lax; Max-Age=31536000`;
   modeApply();
 }
-/* The theme button of the mobile bar: the toolbox's ◐, cycling light, dark
-   and sepia under `parseh_theme` as it does on every other page.  The
-   studio's pages follow that preference until a theme is picked in the
-   studio's own panel, and then that pick wins (app.js, loadTypo) -- which
-   would leave this button pressing on nothing.  So pressing it lets such a
-   pick go: what the button says is what the whole toolbox is to look like,
-   and the studio follows it again from here on, as it did before the pick. */
-const THEMES = ["light", "dark", "sepia"];
-const THEME_GLYPH = {light: "○", dark: "●", sepia: "◐"};
-const shownTheme = () => { const t = loadTypo(null).theme; return t === "paper" ? "light" : t; };
-function paintTheme() {
-  const now = shownTheme(), next = THEMES[(THEMES.indexOf(now) + 1) % THEMES.length];
-  $$("[data-parseh-theme]").forEach(b => {
-    b.textContent = THEME_GLYPH[now] || "◐";
-    b.title = `theme: ${now} — click for ${next}`;
-  });
-}
-function cycleTheme() {
-  const next = THEMES[(THEMES.indexOf(shownTheme()) + 1) % THEMES.length];
-  try {
-    localStorage.setItem("parseh_theme", next);
-    const kept = JSON.parse(localStorage.getItem("exlex-typo:global") || "{}");
-    if (kept && typeof kept === "object" && "theme" in kept) {
-      delete kept.theme;
-      localStorage.setItem("exlex-typo:global", JSON.stringify(kept));
-    }
-  } catch (e) { /* private mode: this page still turns */ }
-  applyTypo(loadTypo(null));
-  paintTheme();
-}
+/* THE THEME IS NOT HERE.  The ◐ of the bars, the colours of the sheet and what
+   the computer says of them are app.js's (paintTheme, bindStudioLook): one
+   function for every page of the studio, the decks among them.  This file
+   kept a cycle of its own, which wrote the toolbox's key and repainted what
+   it thought was its page. */
 function bindMode() {
   modeApply();
-  paintTheme();
   document.addEventListener("click", e => {
     const b = e.target.closest && e.target.closest("[data-parseh-mode]");
     if (b) modeSet(b.dataset.parsehMode);
-    else if (e.target.closest && e.target.closest("[data-parseh-theme]")) cycleTheme();
   });
   addEventListener("storage", e => {
     if (e.key === MODE_KEY || e.key === null) modeApply();
-    if (e.key === "parseh_theme" || e.key === "exlex-typo:global" || e.key === null) {
-      applyTypo(loadTypo(null));
-      paintTheme();
-    }
   });
   // a page brought back from the back-forward cache ran none of its script
-  addEventListener("pageshow", e => { if (e.persisted) { modeApply(); paintTheme(); } });
+  addEventListener("pageshow", e => { if (e.persisted) modeApply(); });
   bindBarFollow();
+  // what the gear's Interface group asks (lib/pagesettings.js std.interface),
+  // which does the same as the switch it replaces on a phone's bar: stored,
+  // mirrored, drawn, and the worker registered where the mobile mode is
+  window.ParsehStudioMode = {get: modeNow, set: modeSet, isMobile};
 }
 
 /* The mobile bar goes on the way down and comes back on the way up

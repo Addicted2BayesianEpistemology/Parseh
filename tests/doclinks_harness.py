@@ -47,6 +47,8 @@ texmf_fixture.pretend_got(texpackages, latexthemes)
 import offline  # the phone-keeping memories (lib/offline.py) too
 offline.DIGESTS = str(tmp / "config" / "digests.json")
 offline.WHERES = str(tmp / "config" / "wheres.json")
+import prefs    # and the owner's preferences (lib/prefs.py): a document loads
+prefs.STORE = str(tmp / "config" / "prefs.json")   # lib/prefs.js since a0.5.0
 store.LIB.mkdir()
 decks.set_dir(tmp / "exercises")
 decks.set_clips_dir(tmp / "clips")

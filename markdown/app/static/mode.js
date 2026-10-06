@@ -11,19 +11,24 @@
        then the cookie, then the browser interface), and puts it on
        <html data-mode> -- the head has done that already, before anything was
        painted (deckroutes.MODE_SCRIPT); this keeps it in step afterwards;
-     - wires the switch and the mobile bar's theme button;
+     - wires the switch (the library's bar has one; a document's is in the
+       gear, which asks ParsehStudioMode.set below);
      - follows a switch made in another tab;
      - registers the service worker in the mobile mode, so that a phone can
        install the interface as an app from any of its pages (lib/sw.js);
      - puts the bar away as the page goes down and brings it back on the
        smallest move up, at every width in the mobile layout.
 
+   THE THEME IS NOT HERE.  The ◐ on these pages, the colours of the sheet and
+   what the computer says of them are app.js's (paintTheme, bindStudioLook),
+   one function for every page of the studio; this file used to cycle the
+   theme on its own and repaint <html> alone, which left the sheet as it was.
+
    Nothing here edits, and nothing here knows what a document is: that is
    app.js's, and the mobile layout simply does not show what it opens. */
 (function () {
   'use strict';
-  var KEY = 'parseh_mode', THEME = 'parseh_theme';
-  var THEMES = ['light', 'dark', 'sepia'];
+  var KEY = 'parseh_mode';
 
   function get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
   function put(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
@@ -56,19 +61,6 @@
     if (!('serviceWorker' in navigator) || !window.isSecureContext) return;
     navigator.serviceWorker.register('/sw.js').catch(function () {});
   }
-  /* the toolbox's theme, which the studio's own panel may override: pressing
-     this button is a decision about the whole toolbox, so the page's own
-     pick gives way to it (app.js reads the same key) */
-  function cycleTheme() {
-    var was = get(THEME), i = THEMES.indexOf(was);
-    put(THEME, THEMES[(i + 1) % THEMES.length]);
-    paintTheme();
-  }
-  function paintTheme() {
-    var t = get(THEME);
-    if (t && THEMES.indexOf(t) >= 0) document.documentElement.setAttribute('data-theme', t);
-  }
-
   /* the bar goes on the way down and comes back on the way up */
   function bindBarFollow() {
     var lastY = Math.max(0, window.scrollY), ticking = false, off = false;
@@ -92,17 +84,14 @@
   }
 
   apply();
-  paintTheme();
   document.addEventListener('click', function (e) {
     var b = e.target.closest && e.target.closest('[data-parseh-mode]');
-    if (b) { set(b.dataset.parsehMode); return; }
-    if (e.target.closest && e.target.closest('[data-parseh-theme]')) cycleTheme();
+    if (b) set(b.dataset.parsehMode);
   });
   window.addEventListener('storage', function (e) {
     if (!e.key || e.key === KEY) apply();
-    if (!e.key || e.key === THEME) paintTheme();
   });
-  window.addEventListener('pageshow', function (e) { if (e.persisted) { apply(); paintTheme(); } });
+  window.addEventListener('pageshow', function (e) { if (e.persisted) apply(); });
   if (document.readyState === 'loading')
     document.addEventListener('DOMContentLoaded', bindBarFollow);
   else bindBarFollow();

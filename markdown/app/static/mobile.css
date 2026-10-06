@@ -31,9 +31,12 @@ html[data-mode=mobile]{--m-col:560px}
 
 /* ---------------- the bar ----------------
    The way home, the way up (the decks, the deck), the switch and the
-   theme -- the hub's mobile bar, in the studio's colours.  Studying and
-   cramming have none: the exercise has the screen, and the way back is
-   the ‹ beside its deck's name. */
+   theme -- the hub's mobile bar, in the studio's colours.  A document and a
+   deck have a gear (static/gear.js) after the theme, and no switch: it is in
+   the gear's Interface group; the library and the list of decks, which have
+   none, keep theirs.  Studying and cramming have no bar: the exercise has the
+   screen, the way back is the ‹ beside its deck's name, and the gear is at the
+   other end of that row. */
 /* flex-wrap: the bar carries one thing more than it used to -- the ? that
    says what a button does on a screen with no mouse (lib/explain.js, §4.7) --
    and a narrow phone must put it on a second line rather than let the bar
@@ -85,12 +88,28 @@ html[data-mode=mobile] .m-topbar .parseh-mode [data-parseh-mode=mobile]{
   .m-topbar :is(.m-home,.m-up) .word{position:absolute;width:1px;height:1px;overflow:hidden;
     clip-path:inset(50%);white-space:nowrap}
 }
+/* THE BAR OF A DOCUMENT AND OF A DECK IS ONE ROW (a0.5.0), from 320px to the
+   widest phone.  The Browser | Mobile switch left it for the gear's Interface
+   group, and what stands in its place is two squares: ◐ and ⚙ -- and, on a
+   touch screen, the ? of lib/explain.js after them.  So the room goes to the
+   squares: where the words beside the glyph of Parseh and beside the way up
+   would take it, they go (from the eye only, as under 360px they already did:
+   a screen reader still hears them). */
+@media (max-width:430px){
+  body:is([data-page=doc],[data-page=deck]) .m-topbar .m-home .word{position:absolute;width:1px;
+    height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+  body:is([data-page=doc],[data-page=deck]) .m-topbar .m-home{min-width:48px;justify-content:center}
+}
+@media (max-width:399px){
+  body:is([data-page=doc],[data-page=deck]) .m-topbar .m-up .word{position:absolute;width:1px;
+    height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+}
 /* The bar goes on the way down and comes back on the way up, as the other
    mobile pages' bars do (decks.js): a sideways phone has the least height
-   of all. */
+   of all.  Studying and cramming have no bar at all (their templates carry
+   none): the gear is in the row of the exercise's title. */
 .m-topbar{transition:transform .18s ease}
 html[data-mode=mobile] body.barhidden .m-topbar{transform:translateY(-100%)}
-html[data-mode=mobile] body:is([data-page=study],[data-page=cram]) .m-topbar{display:none}
 
 /* ---------------- the column ---------------- */
 html[data-mode=mobile] :is(.dk-container,.dk-study-page){max-width:var(--m-col);padding:12px 16px 12vh}
@@ -245,6 +264,9 @@ html[data-mode=mobile] .dk-studyhead .m-back:focus-visible{outline:2px solid var
 html[data-mode=mobile] .dk-studyhead .dk-title{flex:1 1 auto;min-width:0;margin:0;font-size:1.1rem;
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 html[data-mode=mobile] .dk-studyhead .dk-study-counts{flex:none;margin-inline-start:auto;font-size:.92rem}
+/* the gear (static/gear.js), at the end of that row: a finger's square, and
+   the title gives it the room */
+html[data-mode=mobile] .dk-studyhead .pg-gear{flex:none;margin-inline-end:-6px}
 html[data-mode=mobile] .dk-result{font-size:1.1rem;scroll-margin:12px 0 170px}
 html[data-mode=mobile] .dk-done{padding:2rem 1rem}
 html[data-mode=mobile] .dk-done-actions{flex-direction:column;align-items:stretch}
