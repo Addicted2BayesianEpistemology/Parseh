@@ -4,11 +4,16 @@ import {gearOpen, gearClose, gearRow} from './gear_driver.mjs';
 // THE GUIDE'S PICTURES, retaken from the real pages (a0.5.0).
 //
 // Run (from the checkout, with the toolchain of tests/ on the path):
-//   CHROME_BIN=/path/to/chrome PARSEH_PYTHON=python3 deno run --allow-all tests/guide_shots.mjs
+//   CHROME_BIN=/path/to/chrome PARSEH_PYTHON=python3 GUIDE_SHOTS_WRITE=1 deno run --allow-all tests/guide_shots.mjs
 //   GUIDE_SHOTS_ONLY=reader,gear-reader   retakes only those pictures (the keys of FILES below)
-//   GUIDE_SHOTS_OUT=<dir>                 saves into <dir>/<section>/shots/ instead of html-guide/markdown/
+//   GUIDE_SHOTS_OUT=<dir>                 saves into <dir>/<section>/shots/ (and keeps them) instead of html-guide/markdown/
 //   GUIDE_SHOTS_LIST=1                    prints the names and stops
 // Then compile the guide again (python3 html-guide/build.py): site/ holds the pictures too.
+//
+// WITHOUT GUIDE_SHOTS_WRITE (or GUIDE_SHOTS_OUT) IT SAVES NOTHING OF THE GUIDE'S.  Every tests/*.mjs is run by
+// release step 1 and a run of the suites leaves the checkout as it found it, so by default the pictures go to a
+// folder of their own that is removed at the end, and the run is the check that each picture can still be taken
+// (it ends with a failing status when one cannot).  Retaking the guide's own pictures is something a person asks for.
 //
 // WHAT IT DOES.  It boots the REAL hub (serve.main) on a temporary toolbox, the one tests/mobile_harness.py builds
 // for tests/mobile_pages.mjs and tests/gear_reader.mjs (the fixture editions of six languages, a narrated English
@@ -24,7 +29,9 @@ import {gearOpen, gearClose, gearRow} from './gear_driver.mjs';
 const root = await Deno.realPath(new URL('..', import.meta.url));
 Deno.chdir(root);
 const PY = Deno.env.get('PARSEH_PYTHON') || 'python3';
-const OUT = Deno.env.get('GUIDE_SHOTS_OUT') || `${root}/html-guide/markdown`;
+const WRITE = !!Deno.env.get('GUIDE_SHOTS_WRITE');
+const KEEP = WRITE || !!Deno.env.get('GUIDE_SHOTS_OUT');
+const OUT = Deno.env.get('GUIDE_SHOTS_OUT') || (WRITE ? `${root}/html-guide/markdown` : await Deno.makeTempDir({prefix: 'parseh-guide-shots-out-'}));
 const ONLY = (Deno.env.get('GUIDE_SHOTS_ONLY') || '').split(',').filter(Boolean);
 const td = new TextDecoder();
 const sleep = ms => new Promise(r => setTimeout(r, ms));
@@ -71,7 +78,7 @@ const FILES = {
 };
 const wanted = name => !ONLY.length || ONLY.includes(name);
 if (Deno.env.get('GUIDE_SHOTS_LIST')) { console.log(Object.keys(FILES).join('\n')); Deno.exit(0); }
-const saved = [];
+const saved = [], failed = [];
 async function save(page, name, clip) {
   const file = `${OUT}/${FILES[name]}`;
   await Deno.mkdir(file.replace(/\/[^/]*$/, ''), {recursive: true});
@@ -645,12 +652,19 @@ try {
     if (!wanted(name)) continue;
     console.log('\n' + name);
     try { await resetPrefs(); await resetLater(); await PICS[name](); }
-    catch (e) { console.log('  FAILED:', e.message.split('\n')[0]); }
+    catch (e) { failed.push(name); console.log('  FAILED:', e.message.split('\n')[0]); }
   }
 } finally {
   await browser.close();
   try { hub.kill('SIGTERM'); } catch (_) {}
   await hub.status.catch(() => {});
   await Deno.remove(WORK, {recursive: true}).catch(() => {});
+  if (!KEEP) await Deno.remove(OUT, {recursive: true}).catch(() => {});
 }
-console.log(`\n${saved.length} pictures saved`);
+// a picture that was not taken, or a name of FILES that no picture saved, is a picture the guide cannot be made again with
+const missing = ONLY.length ? [] : Object.values(FILES).filter(f => !saved.includes(f));
+console.log(KEEP ? `\n${saved.length} pictures saved` : `\n${saved.length} pictures taken and not kept (GUIDE_SHOTS_WRITE=1 saves them into html-guide/markdown/)`);
+if (failed.length || missing.length) {
+  console.log(`guide shots FAILED: ${failed.length ? 'could not be taken: ' + failed.join(', ') : ''}${missing.length ? ' not saved by any picture: ' + missing.join(', ') : ''}`);
+  Deno.exit(1);
+}

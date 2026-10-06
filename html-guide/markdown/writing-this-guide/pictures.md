@@ -107,11 +107,13 @@ real hub on a temporary toolbox — the fixture books, a video with a film to pl
 documents and decks — and drives a real Chromium the way a person does, with a mouse at
 a computer's size and a finger at a phone's, and saves each picture where its page
 expects it, in `html-guide/markdown/<section>/shots/`. Run it with the toolchain the
-tests use (`deno run --allow-all tests/guide_shots.mjs`; `GUIDE_SHOTS_ONLY=reader` retakes
-the pictures it names, and `GUIDE_SHOTS_OUT=<folder>` saves them elsewhere to be looked
-at first), look at every file it saves, and compile the guide again. Nothing of your
-books, videos or settings is read or written: everything it opens lives in a temporary
-folder, which it removes.
+tests use (`GUIDE_SHOTS_WRITE=1 deno run --allow-all tests/guide_shots.mjs`;
+`GUIDE_SHOTS_ONLY=reader` retakes the pictures it names, and `GUIDE_SHOTS_OUT=<folder>`
+saves them there to be looked at first), look at every file it saves, and compile the
+guide again. Without `GUIDE_SHOTS_WRITE` it saves nothing of the guide's, so that a run of
+all the tests leaves the guide as it was: it only takes the pictures into a folder it
+removes, to show that each can still be taken. Nothing of your books, videos or settings
+is read or written: everything it opens lives in a temporary folder, which it removes.
 
 ## Making a GIF
 
