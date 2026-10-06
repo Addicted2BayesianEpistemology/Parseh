@@ -774,7 +774,9 @@ async function partClouds() {
      pick: p => centre(p, 'main .p1 .w', 1), go: (p, pt) => p.mouse.move(pt.x, pt.y)},
     {name: 'the player\'s gloss cloud', path: VIDEO, cloud: '#cloud', tol: 2,
      prep: p => p.waitForFunction(() => document.querySelectorAll('#segs .seg .w').length > 0),
-     pick: p => centre(p, '#segs .seg .w', 0), go: (p, pt) => p.mouse.move(pt.x, pt.y)},
+     // (the second phrase of a line, not its first: at 200 % the column is the width of the window in page px, and a cloud over
+     // the very start of a line is shifted in by the window's edge, which is right but is not what is compared here)
+     pick: p => centre(p, '#segs .seg .w', 1), go: (p, pt) => p.mouse.move(pt.x, pt.y)},
     {name: 'the studio\'s word cloud (a blank)', path: DOC, cloud: 'article.sheet .ex-cloud', tol: 3,
      prep: p => p.waitForSelector('article.sheet .ex-blank'),
      pick: p => centre(p, 'article.sheet .ex-blank', 0), go: (p, pt) => p.mouse.click(pt.x, pt.y)},
