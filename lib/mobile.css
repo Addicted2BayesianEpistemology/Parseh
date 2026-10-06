@@ -280,7 +280,7 @@ a.m-book:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 /* ---------------- a book's reader ----------------
    Every reader is a page built for its book (lib/tex2html.py), and its
    header is the browser's: three rows of everything -- the listening, the
-   passes, the book's own tools, the narration, the build.  lib/parseh.js
+   levels, the book's own tools, the narration, the build.  lib/parseh.js
    puts html.m-reader on it and this sheet in it, and in the mobile mode the
    same header is laid out again for a thumb, out of reading alone.
    NOTHING IS MOVED AND NOTHING IS COPIED: the rows stop being boxes of
@@ -288,22 +288,27 @@ a.m-book:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
    header, placed by `order`.  The controls that read are named below, and
    every other one -- whatever writes, builds or administers, and whatever a
    later reader adds that nobody has named here yet -- is not on a phone at
-   all.  The first line is the way out and the three things a reader reaches
-   for: play, the contents, the text size; ⋯, which lib/mobilereader.js
-   adds, opens the rest under it, a group to a line.  A
-   control the reader itself keeps hidden (no narration, no dictionary, the
-   gap while loop is off) stays hidden: nothing here ever says a control's
-   display, it only takes some away. */
+   all.  The first line is the way out and the things a reader reaches for:
+   the contents, the text size, and the gear, ⚙ (lib/gear-reader.js), whose
+   sheet holds all the rest -- the levels, the glosses, the listening, looking
+   a word up, the colours, the Keep buttons -- and which replaced the ⋯ that
+   opened them under the first line until a0.5.0.  A control the reader
+   itself keeps hidden (no narration, no dictionary, the gap while loop is
+   off) stays hidden: nothing here ever says a control's display, it only
+   takes some away. */
 html.m-reader[data-mode=mobile] header{flex-direction:row;flex-wrap:wrap;align-items:center;
   gap:6px;padding:6px 10px}
 html.m-reader[data-mode=mobile] header > .hrow:not([hidden]){display:contents}
-html.m-reader[data-mode=mobile] header > .hrow > :not(a.home,#toc,#typo,#theme,.pgrp,.px-ask,.kp-btn,.kp-off,.kp-again,.kp-wait,
-  [data-toggle=nogloss],#hovermode,#cont,#loop,#gapwrap,#stopbnd,#hoverpause,#listen,#listenfollow,
-  #listenscroll,#seekwrap,#pos,#warn,#dictmode,#defmode,#defmt,#bars,
-  #audio,[data-layout=mobile]){display:none!important}
+html.m-reader[data-mode=mobile] header > .hrow > :not(a.home,#toc,#typo,[data-parseh-gear],.px-ask,
+  .kp-off,.kp-again,.kp-wait,#listenfollow,#listenscroll,#seekwrap,#pos,#warn,#audio,
+  [data-layout=mobile]){display:none!important}
+/* the Keep buttons (lib/keep.js) are the sheet's: the gear brings them into its
+   last group while it is up, and out of the sheet they are not on the page.  The
+   skip row ("skip by") is the gear's Skip distance now. */
+html.m-reader[data-mode=mobile] header :is(.kp-btn,.m-rskip){display:none!important}
 /* what stays is for a finger: 48px at the least, the text a size to read;
    and no grey-blue flash over what was tapped, which a phone paints over
-   a control that has states of its own to show (⋯ open, a pass on) */
+   a control that has states of its own to show (the gear open, a switch on) */
 html.m-reader[data-mode=mobile] header :is(button,select,a.home){min-height:48px;
   font-size:15px;padding:6px 12px;border-radius:10px;-webkit-tap-highlight-color:transparent}
 html.m-reader[data-mode=mobile] header button{min-width:48px}
@@ -317,112 +322,52 @@ html.m-reader[data-mode=mobile] header a.home{display:inline-flex;align-items:ce
   justify-content:center;min-width:48px}
 /* the nastaliq پ hangs below its baseline: its room is under it */
 html.m-reader[data-mode=mobile] header a.home.glyph{font-size:19px;padding:0 12px 8px}
-/* the switch, drawn as its own two halves (parseh.css) and as tall as the rest */
-html.m-reader[data-mode=mobile] header .parseh-mode button{border-radius:0;min-width:0;
-  padding:0 16px;font-size:15px}
-html.m-reader[data-mode=mobile] header .parseh-mode button:first-child{
-  border-start-start-radius:9px;border-end-start-radius:9px}
-html.m-reader[data-mode=mobile] header .parseh-mode button:last-child{
-  border-start-end-radius:9px;border-end-end-radius:9px}
-html.m-reader[data-mode=mobile] header .parseh-mode{border-radius:10px}
-/* THE FIRST LINE: the hub, the shelf, the contents, the text size, where
-   the recording is, and ⋯ at its end -- six targets, which a phone 320px
-   wide has room for on one line.  The recording is not moved from here any
-   more: the dock at the foot does that.  The contents is its glyph alone:
-   the word stays in the button for a screen reader, drawn at no size at
-   all.  The theme is one tap further, under ⋯. */
+/* THE FIRST LINE: the hub, the shelf, the contents, the text size, the gear,
+   where the recording is not -- six targets with the "?" of lib/explain.js,
+   which a phone 320px wide has room for on one line.  The recording is not
+   moved from here any more: the dock at the foot does that.  The contents is
+   its glyph alone: the word stays in the button for a screen reader, drawn at
+   no size at all.  Everything else is one tap further, in the gear's sheet. */
 html.m-reader[data-mode=mobile] header a.home.glyph{order:1}
 html.m-reader[data-mode=mobile] header a.home:not(.glyph){order:2}
 html.m-reader[data-mode=mobile] header #toc{order:6;font-size:0;padding:0}
 html.m-reader[data-mode=mobile] header #toc::before{content:"\2630";font-size:20px;line-height:1}
 html.m-reader[data-mode=mobile] header #typo{order:7}
-/* Where the recording is, and how long it is: read, not tapped -- and so it
-   goes with the rest of the listening, under ⋯.  The first line is five
-   targets and nothing else, which a phone 320px wide holds on one line; the
-   reading place itself is shown by the mark moving through the text. */
-html.m-reader[data-mode=mobile] header #pos{order:36;font-size:14px;color:var(--dim);
-  font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
-  max-width:14em;padding-inline:2px}
-html.m-reader[data-mode=mobile] header .m-rmore{order:9;margin-inline-start:auto;font-size:20px;
-  line-height:1;letter-spacing:.06em}
+html.m-reader[data-mode=mobile] header [data-parseh-gear]{order:9;margin-inline-start:auto;
+  font-size:20px;line-height:1}
 /* "?" -- what a button does, for a screen with no mouse to rest on it
-   (lib/explain.js): beside ⋯, at the end of the first line */
+   (lib/explain.js): beside the gear, at the end of the first line */
 html.m-reader[data-mode=mobile] header .px-ask{order:10}
 /* the chip that says the computer cannot be reached (lib/keep.js, §19.5):
-   on the first line, where it is seen at once and not only under ⋯ */
+   on the first line, where it is seen at once */
 html.m-reader[data-mode=mobile] header :is(.kp-off,.kp-again,.kp-wait){order:11}
 @media (max-width:359px){
   html.m-reader[data-mode=mobile] header{gap:4px;padding:6px 6px}
 }
-/* a book with no narration has no recording to move */
-html.m-reader[data-mode=mobile] body.noaudio .m-rskip{display:none!important}
-html.m-reader[data-mode=mobile] header.m-more .m-rmore{background:var(--hl);border-color:var(--accent);
-  color:var(--accent)}
-/* the rest: a line saying what the group is, then the group */
-html.m-reader[data-mode=mobile] header .m-rlab{flex:1 0 100%;margin:8px 0 -2px;
-  font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--dim)}
-html.m-reader[data-mode=mobile] header .m-rlab[data-g=passes]{order:20}
-html.m-reader[data-mode=mobile] header .pgrp{order:21}
-html.m-reader[data-mode=mobile] header [data-toggle=nogloss]{order:22}
-html.m-reader[data-mode=mobile] header #hovermode{order:23}
-html.m-reader[data-mode=mobile] header .m-rlab[data-g=listening]{order:30}
-html.m-reader[data-mode=mobile] header #cont{order:31}
-html.m-reader[data-mode=mobile] header #loop{order:32}
-html.m-reader[data-mode=mobile] header #gapwrap{order:33}
-html.m-reader[data-mode=mobile] header #stopbnd{order:34}
-/* hover ⏸ (lib/mobilereader.js): the narration waits while a gloss is open.
-   Beside the other switches of the listening, ahead of where it is. */
-html.m-reader[data-mode=mobile] header #hoverpause{order:35}
-/* HOW FAR ↺ AND ↻ MOVE, in the open.  Holding either button opens the same
-   row over the dock, but a hold cannot be seen, so the group says it too
-   (lib/narrctl.js builds both; the speed is the dock's chip and is not
-   repeated here). */
-html.m-reader[data-mode=mobile] header .m-rskip{order:37;display:flex;align-items:center;
-  flex-wrap:wrap;gap:6px;flex:1 0 100%;font-size:14px;color:var(--dim)}
-html.m-reader[data-mode=mobile] header .m-rskiplab{margin-inline-end:2px}
-html.m-reader[data-mode=mobile] header .m-rskip button{min-width:48px;min-height:48px;
-  font-variant-numeric:tabular-nums}
-html.m-reader[data-mode=mobile] header .m-rskip button.on{border-color:var(--accent);
-  color:var(--accent);background:var(--hl)}
-html.m-reader[data-mode=mobile] header #listen{order:38}
-html.m-reader[data-mode=mobile] header #listenfollow{order:39}
-html.m-reader[data-mode=mobile] header #listenscroll{order:40}
-html.m-reader[data-mode=mobile] header #seekwrap{order:41;flex:1 1 100%}
+/* THE LISTENING LINE: listening on its own (the gear's "Listen on its own", or
+   the page's own listen button) draws a line under the first one -- the highlight
+   and keeping it in view, where the recording is, and a bar to start anywhere --
+   and nothing else of the listening is on the page.  Off, they are all away. */
+html.m-reader[data-mode=mobile] header #listenfollow{order:30}
+html.m-reader[data-mode=mobile] header #listenscroll{order:31}
+html.m-reader[data-mode=mobile] header #pos{order:32;margin-inline-start:auto;font-size:14px;
+  color:var(--dim);font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;
+  text-overflow:ellipsis;max-width:14em;padding-inline:2px}
+html.m-reader[data-mode=mobile] header #seekwrap{order:33;flex:1 1 100%}
 html.m-reader[data-mode=mobile] header #seekwrap input{width:100%!important;min-height:40px}
 html.m-reader[data-mode=mobile] header #warn{order:42;flex:1 1 100%;font-size:13px!important}
-html.m-reader[data-mode=mobile] header .m-rlab[data-g=looking]{order:50}
-html.m-reader[data-mode=mobile] header #dictmode{order:51}
-html.m-reader[data-mode=mobile] header #defmode{order:52}
-html.m-reader[data-mode=mobile] header #defmt{order:53}
-html.m-reader[data-mode=mobile] header .m-rlab[data-g=page]{order:60}
-html.m-reader[data-mode=mobile] header #theme{order:61}
-html.m-reader[data-mode=mobile] header #bars{order:62}
-html.m-reader[data-mode=mobile] header .parseh-mode{order:63}
-/* Keep on this phone (lib/keep.js, §19.2): with the rest of "This page",
-   under ⋯ -- keeping a book is a decision, not a thing to press by accident */
-html.m-reader[data-mode=mobile] header .kp-btn{order:65;flex:1 0 100%}
+html.m-reader[data-mode=mobile] header:not(:has(#listen.on)) :is(#seekwrap,#listenfollow,
+  #listenscroll,#pos){display:none!important}
 /* the narration's own player, where the reader shows it (a book with a
    recording and no times yet): a line of its own under everything */
 html.m-reader[data-mode=mobile] header #audio{order:90;flex:1 1 100%;min-width:0;max-width:none;
   height:40px;margin:2px 0}
-/* ⋯ closed: the first line alone (with the recording's line, upright) */
-html.m-reader[data-mode=mobile] header:not(.m-more) :is(.m-rlab,.m-rskip,.kp-btn,.pgrp,
-  [data-toggle=nogloss],#hovermode,#cont,#loop,#gapwrap,#stopbnd,#hoverpause,#listen,#listenfollow,
-  #listenscroll,#seekwrap,#pos,#warn,#dictmode,#defmode,#defmt,#theme,#bars,.parseh-mode){
-  display:none!important}
-/* Open, the controls may be more than a phone held sideways has height for:
-   they scroll inside the header, and the page under them stays put. */
-html.m-reader[data-mode=mobile] header.m-more{max-height:100vh;max-height:100dvh;overflow-y:auto;
-  overscroll-behavior:contain}
 /* The header goes on the way down and comes back on the way up at every
    width in the mobile mode -- the reader's own sheet does it under 560px
    only, and a phone held sideways is wider than that and has least height
    of all (parseh.js, bars(), follows the scroll in the mobile mode). */
 html.m-reader[data-mode=mobile] header{transition:transform .18s ease}
 html.m-reader[data-mode=mobile] body.barhidden header{transform:translateY(-100%)}
-/* a group with nothing in it this book offers -- no narration, no
-   dictionary -- has no line (mobilereader.js marks it) */
-html.m-reader[data-mode=mobile] header .m-rlab.m-empty-g{display:none!important}
 /* the button that brings the header back when it has been put away: a
    finger's size too */
 html.m-reader[data-mode=mobile] #barsback{min-height:44px;min-width:56px;font-size:14px;opacity:.75}

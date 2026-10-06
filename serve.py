@@ -531,6 +531,9 @@ STATIC_FILES = {"/lib/lmlikelihoodsettings.js", "/lib/llmsettings.js", "/youtube
                 # THE GEAR (a0.5.0): the one panel every page opens for its own settings
                 # (lib/pagesettings.js, which links the sheet from beside itself)
                 "/lib/pagesettings.js", "/lib/pagesettings.css",
+                # and the book reader's use of it (lib/gear-reader.js, loaded by parseh.js
+                # into every reader beside it)
+                "/lib/gear-reader.js",
                 "/youtube/lib/style.css", "/youtube/lib/player.js",
                 # the tab's share and the recording of its sound, which the
                 # player draws its waveform from and the add page turns into

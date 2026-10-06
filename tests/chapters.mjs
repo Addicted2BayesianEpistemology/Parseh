@@ -137,8 +137,10 @@ try {
 
   console.log('c) the pass toggles are one group');
   assert(await page.locator('.pgrp .pgrpb button[data-toggle]').count() >= 2,
-         'the numbered buttons live in the group');
-  assert((await page.locator('.pgrp .pgrpc').textContent()).trim() === 'which passes you see',
+         'the level buttons, each wearing its name, live in the group');
+  assert((await page.locator('.pgrp .pgrpb button[data-toggle]').allTextContents()).every(t => /^[A-Za-z][A-Za-z ]*$/.test(t.trim())),
+         'and no button says a digit');
+  assert((await page.locator('.pgrp .pgrpc').textContent()).trim() === 'levels',
          'and the caption under them says what they are');
 
   console.log('d) hover mode greys what it swallows and leaves the rest');

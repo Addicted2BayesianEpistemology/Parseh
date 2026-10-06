@@ -370,14 +370,17 @@ class RegistryTests(unittest.TestCase):
         # the reader's own hover with row.insertBefore -- the same receiver,
         # so the set below does not grow, and the count says it is only that
         receivers = re.findall(r'(\w+)\.(?:appendChild|insertBefore|replaceWith|replaceChildren|remove)\(', js)
-        self.assertEqual(set(receivers) - {'classList'}, {'row', 'sw', 'none', 'box', 'auto'})
+        # (a0.5.0: the ⋯ menu, its group lines and the Browser | Mobile switch left this file for the
+        # gear -- lib/gear-reader.js -- so what was put into the header for them, `sw`, is gone)
+        self.assertEqual(set(receivers) - {'classList'}, {'row', 'none', 'box', 'auto'})
         # (the other row.insertBefore is the dictionary's button, in the CLOUD's
         # row of buttons; this one is the header's)
         hp = js[js.index('/* ---- pause on touch: hover'):js.index('/* ---- a book with few glosses')]
         self.assertEqual(hp.count('row.insertBefore('), 1, 'hover ⏸ is the one thing put beside a reader control')
         self.assertEqual(js.count('auto.remove();'), 1)
         self.assertEqual(re.findall(r"\.classList\.(?:add|remove)\('([\w-]+)'\)", js), ['m-gl', 'm-gl'])
-        self.assertIn("var sw = el('span', 'parseh-mode');", js)
+        self.assertNotIn('parseh-mode', js)
+        self.assertNotIn('m-rmore', js)
         self.assertIn("var b = el('button', 'mkdict', 'dictionary');", js)
         self.assertIn("var box = el('div', 'dict m-dict');", js)
         # THE ONE THING OF THE READER'S IT HANDS ON (a0.3.2, TO-DO §4.18): the
@@ -532,8 +535,11 @@ class RegistryTests(unittest.TestCase):
         # a book with no narration has nothing to move: no dock, no row
         css = (ROOT / 'lib' / 'parseh.css').read_text(encoding='utf-8')
         self.assertIn('body.noaudio :is(.nc-skip,.nc-chip,.nc-dock){display:none!important}', css)
+        # the phone's row of skip distances is the gear's Skip distance now (a0.5.0): kept in the
+        # header's DOM and not drawn there, in either layout
         mcss = (ROOT / 'lib' / 'mobile.css').read_text(encoding='utf-8')
-        self.assertIn('html.m-reader[data-mode=mobile] body.noaudio .m-rskip{display:none!important}', mcss)
+        self.assertIn('html.m-reader[data-mode=mobile] header :is(.kp-btn,.m-rskip){display:none!important}', mcss)
+        self.assertRegex((ROOT / 'lib' / 'parseh.css').read_text(encoding='utf-8'), r'html\.pg-reader header :is\(#stopbnd,#hoverpause,#defmode,#defmt,#lookupset,\.m-rskip\)')
 
     def test_the_speed_never_changes_by_itself(self):
         """The owner's bug of 2026-09-22: a recording loaded put the rate back
@@ -559,7 +565,7 @@ class RegistryTests(unittest.TestCase):
 
     def test_the_header_stays_while_it_is_being_used(self):
         # the bars follow the scroll at every width in the mobile mode, and
-        # stand down while a page holds them (⋯ open, a skip's own scroll)
+        # stand down while a page holds them (a skip's own scroll, the dictionary's sheet)
         js = (ROOT / 'lib' / 'parseh.js').read_text(encoding='utf-8')
         bars = js[js.index('  function bars() {'):js.index('  function wire() {')]
         self.assertIn('var want = mq.matches || isMobile();', bars)
@@ -567,8 +573,10 @@ class RegistryTests(unittest.TestCase):
         self.assertIn("document.body.hasAttribute('data-bars-held')", bars)
         # where the page is, kept even while held, before the hold is asked
         self.assertLess(bars.index('lastY = y;'), bars.index("hasAttribute('data-bars-held')"))
+        # the ⋯ menu held the header while it was open; the gear's sheet does not need to (a0.5.0:
+        # the page above it goes on being read, and the sheet is not in the header)
         layer = (ROOT / 'lib' / 'mobilereader.js').read_text(encoding='utf-8')
-        self.assertIn("hold('more', on);", layer)
+        self.assertNotIn('data-bars-held', layer)
 
     def test_the_reader_sheet_hides_every_writing_door(self):
         css = (ROOT / 'lib' / 'mobile.css').read_text(encoding='utf-8')
@@ -586,8 +594,13 @@ class RegistryTests(unittest.TestCase):
         for gone in ('#bookinfo', '#buildbook', '#buildhtml', '#narr', '#fold', '#editmode', '#editbyear', '#stopsrv',
                      '.dl', '#lookupset', '#build'):
             self.assertNotIn(gone, kept)
-        for there in ('#toc', '#typo', '#theme', '.pgrp', '[data-toggle=nogloss]'):
+        # THE FIRST LINE alone (a0.5.0): the contents, the text size and the gear.  The theme, the
+        # levels, the glosses and the rest are in the gear's sheet, not on a phone's page
+        for there in ('#toc', '#typo', '[data-parseh-gear]'):
             self.assertIn(there, kept)
+        for gone in ('#theme', '.pgrp', '[data-toggle=nogloss]', '#hovermode', '#cont', '#loop', '#gapwrap',
+                     '#stopbnd', '#hoverpause', '#listen', '#dictmode', '#defmode', '#defmt', '#bars'):
+            self.assertNotIn(gone, kept)
         # ▶ is not in the header at all any more: it plays from the dock at
         # the foot of the screen (lib/narrctl.js), and the reader's own
         # button stays on the page, unshown, as the one the dock presses
@@ -633,7 +646,7 @@ class RegistryTests(unittest.TestCase):
         self.assertIn("row.insertBefore(hpBtn, hm && hm.parentNode === row ? hm.nextSibling : null);", hp)
         # ... and hidden in a book with no narration -- every language's
         # book without a recording, right to left included -- which is what
-        # keeps the Listening line off such a book's ⋯
+        # keeps the row (and the Listening group) off such a book's gear
         self.assertIn("hpBtn.hidden = document.body.classList.contains('noaudio');", hp)
         # the reader's own open and close are wrapped by their bare names
         # (every caller in the reader resolves them so), and the wrapper of
@@ -660,20 +673,15 @@ class RegistryTests(unittest.TestCase):
         # the reader's own play of that subparagraph
         self.assertIn('return loop === true && waiting != null && typeof playSub', hp)
         self.assertIn('playSub(cur, false)', hp)
-        # the switch sits in the Listening group, after stop-at-a-change and
-        # before where the recording is; kept by the header's list, hidden with
-        # ⋯ shut like the rest of the group
-        listening = re.search(r"g: 'listening', words: 'Listening',\s+sel: '([^']*)'", js).group(1)
-        self.assertLess(listening.index('#stopbnd'), listening.index('#hoverpause'))
-        self.assertIn('#hoverpause', listening)
+        # the button is the layer's to make and the gear's to press: it is kept in the header, out of
+        # sight in both layouts (html.pg-reader), and the gear's row "Pause while a gloss is open"
+        # drives it (lib/gear-reader.js), under the hover cloud's switch
+        self.assertRegex((ROOT / 'lib' / 'parseh.css').read_text(encoding='utf-8'), r'html\.pg-reader header :is\([^)]*#hoverpause[^)]*\)\{\s*display:none!important')
         keep = re.search(r"html\.m-reader\[data-mode=mobile\] header > \.hrow > :not\(([^)]*)\)", css)
-        self.assertIn('#hoverpause', {s.strip() for s in keep.group(1).split(',')})
-        closed = re.search(r"header:not\(\.m-more\) :is\(\.m-rlab,\.m-rskip,([^)]*)\)\{", css)
-        self.assertIn('#hoverpause', {s.strip() for s in closed.group(1).split(',')})
-        order = lambda sel: int(re.search(r'html\.m-reader\[data-mode=mobile\] header %s\{order:(\d+)' % re.escape(sel), css).group(1))
-        self.assertLess(order('#stopbnd'), order('#hoverpause'))
-        self.assertLess(order('#hoverpause'), order('#pos'))
-        self.assertLess(order('#pos'), order('.m-rskip'))
+        self.assertNotIn('#hoverpause', {s.strip() for s in keep.group(1).split(',')})
+        gear = (ROOT / 'lib' / 'gear-reader.js').read_text(encoding='utf-8')
+        self.assertIn("id: 'hoverpause', label: 'Pause while a gloss is open', indent: 1,", gear)
+        self.assertIn("}, pressOf('hoverpause'))));", gear)
         # every language: the header is an island that reads left to right
         # whatever the book's language, so the button and its place are the
         # same in Persian, Arabic, Japanese, Hindi and Chinese as in English.

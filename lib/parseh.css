@@ -734,3 +734,25 @@ body:has(.tl-root) .pf-bar{display:none}
    the mobile mode, and a tablet in the browser mode alike */
 @media (hover:none){.nc-popb{min-width:52px;min-height:52px;font-size:15px}
   .nc-skip{font-size:14px;padding:9px 11px}.nc-chip{font-size:14px;padding:9px 12px}}
+
+/* ---------------- THE READER'S GEAR, in both layouts (a0.5.0) ----------------
+   html.pg-reader is put on every reader by lib/parseh.js together with the
+   scripts that draw the gear (lib/pagesettings.js, lib/gear-reader.js), and
+   taken off again if either cannot be had, so the first paint is already the
+   page with its gear -- and, a stylesheet every reader links in its head
+   being the one that is in force before anything is drawn, it is here and not
+   in lib/mobile.css, which is the mobile layout's alone.  The controls the gear
+   took STAY IN THE DOM -- its rows press them and read them, so every handler,
+   key and remembered value is the page's own -- and are not drawn in the
+   header: stop at a change, the pause while a gloss is open, the dictionary's
+   definitions and their translation, the link to the reading help, and the
+   phone's row of skip distances. */
+html.pg-reader header :is(#stopbnd,#hoverpause,#defmode,#defmt,#lookupset,.m-rskip){
+  display:none!important}
+/* "highlight" and "keep in view" mean nothing outside listening: drawn only
+   while it is on (the page keeps them disabled otherwise) */
+html.pg-reader header :is(#listenfollow,#listenscroll):disabled{display:none}
+/* THE GEAR'S SHEET OVER THE PAGE (html.pg-sheet, lib/pagesettings.js, on any
+   page that has a gear): the reading-place question and the Keep bar, drawn at
+   z-index 415, would stand over it, on the very buttons it is for */
+html.pg-sheet :is(.pf-bar,.kp-bar){display:none!important}

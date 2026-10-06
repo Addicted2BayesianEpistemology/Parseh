@@ -4,7 +4,7 @@ import { chromium } from 'npm:playwright-core@1.52.0';
 //
 // LISTENING TO A BOOK RATHER THAN READING IT.  Everything else in the reader
 // plays a subparagraph: the playhead is the reading place, it stops at that
-// subparagraph's end, and `continuous` steps it on to the next.  `listen` puts
+// subparagraph's end, and `keep going` steps it on to the next.  `listen` puts
 // the recording on instead and leaves the text alone -- no highlight, no
 // scrolling, no reading place moved -- from wherever in the file you like.
 //
@@ -21,14 +21,14 @@ import { chromium } from 'npm:playwright-core@1.52.0';
 //   c) FROM ANY MOMENT.  The seek bar starts the recording anywhere, and what
 //      it is dragged onto is honoured -- a stretch somebody drops into on
 //      purpose is played, or it could not be reached at all.
-//   d) THE TEXT IS NOT FOLLOWED WHILE IT PLAYS, unless "follow" says
+//   d) THE TEXT IS NOT FOLLOWED WHILE IT PLAYS, unless "highlight" says
 //      otherwise.  Off (the default), nothing about the text moves, and
 //      reading is exactly as it was once listening is turned off again.  On,
 //      the mark tracks the playhead the way a video's captions track the
 //      video: moving with it, never pausing it at an ordinary subparagraph's
 //      end (only a fold still does that), never touching the actual reading
 //      place, and skipping a folded subparagraph exactly as the recording
-//      does -- "scroll to it" says whether the page follows the mark there
+//      does -- "keep in view" says whether the page follows the mark there
 //      or the reader follows it by hand.  Both are grey until listening is
 //      on, and reset every time it is turned on: a habit of this moment of
 //      listening, not a property of the book.
@@ -131,7 +131,7 @@ try {
   await page.waitForSelector('#listen');
   await page.waitForFunction(() => A.readyState >= 1, null, {timeout: 10000});
 
-  console.log('follow and scroll to it are grey until listening is on');
+  console.log('highlight and keep in view are grey until listening is on');
   const gated = await page.evaluate(() => ({
     follow: document.getElementById('listenfollow').disabled,
     scroll: document.getElementById('listenscroll').disabled,
@@ -217,7 +217,7 @@ try {
   await page.evaluate(() => { folded = [['1:2', '1:2']]; foldRanges(); applyFold(); });
   await page.click('#listenfollow');
 
-  console.log('scroll to it: off by default, the mark moves and the page does not');
+  console.log('keep in view: off by default, the mark moves and the page does not');
   const shortCtx = await browser.newContext({viewport: {width: 700, height: 220}});
   const shortPage = await shortCtx.newPage();
   const shortErrors = []; shortPage.on('pageerror', e => shortErrors.push(e.message));
@@ -232,10 +232,10 @@ try {
                                   null, {timeout: 15000});
   await shortPage.waitForTimeout(300);
   assert(await shortPage.evaluate(() => scrollY) === before,
-         'scroll to it off: the mark moved but the narrow page did not follow it');
+         'keep in view off: the mark moved but the narrow page did not follow it');
   await shortPage.evaluate(() => A.pause());
 
-  console.log('scroll to it: on, the page follows the mark too');
+  console.log('keep in view: on, the page follows the mark too');
   await shortPage.evaluate(() => { A.currentTime = 0; window.scrollTo(0, 0); });
   await shortPage.click('#listenscroll');
   const before2 = await shortPage.evaluate(() => scrollY);
@@ -243,7 +243,7 @@ try {
   await shortPage.waitForFunction(() => document.querySelector('.sub[data-s="1"]')?.classList.contains('on-air'),
                                   null, {timeout: 15000});
   await shortPage.waitForTimeout(500);
-  assert(await shortPage.evaluate(() => scrollY) !== before2, 'scroll to it on: the page follows the mark');
+  assert(await shortPage.evaluate(() => scrollY) !== before2, 'keep in view on: the page follows the mark');
   assert(shortErrors.length === 0, 'no page errors, narrow page: ' + JSON.stringify(shortErrors));
   await shortPage.close();
   await shortCtx.close();

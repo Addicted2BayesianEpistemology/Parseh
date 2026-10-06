@@ -84,9 +84,9 @@
 // hover ⏸ in a book (a0.4.1; the owner, 2026-09-25 and 2026-09-28; TO-DO §4.20 and §7.21):
 //   n) the video's switch in a book's reader, in BOTH modes, remembered on
 //      this device only (bk_hoverpause; never in the prefs the computer keeps):
-//      under ⋯ -> Listening on a phone, worded and drawn as the video's,
-//      beside hover in the browser interface, and not drawn in a book with no
-//      narration.  Off, nothing changes; on, a cloud opened over a playing
+//      kept in the header out of sight (the gear's row "Pause while a gloss is open"
+//      presses it, in both layouts), worded as the video's, beside hover in the
+//      markup, and not offered in a book with no narration.  Off, nothing changes; on, a cloud opened over a playing
 //      narration (a tap, a mouse at rest) pauses it, once, the cloud still
 //      open, and it goes on 350 ms after the cloud shuts; from one word to
 //      the next within that, one pause and no play; paused by hand, or played
@@ -102,6 +102,7 @@
 //   CHROME_BIN=... PARSEH_PYTHON=python3 deno run --allow-all tests/phone_clouds.mjs
 //   SHOTS=<dir> also saves a screenshot of each
 import {chromium} from 'npm:playwright-core@1.52.0';
+import {GEAR, gearOpen, gearClose, gearRow, gearSwitch, gearSelect, rowDrawn} from './gear_driver.mjs';
 
 const root = await Deno.realPath(new URL('..', import.meta.url));
 const PY = Deno.env.get('PARSEH_PYTHON') || 'python3';
@@ -449,14 +450,11 @@ const tapPhrase = async (page, i, j, cloud = true) => {
 };
 async function openReader(page, path, hover) {
   await page.goto(B + path);
-  await page.waitForFunction(() => document.querySelector('.m-rmore'));
+  await page.waitForFunction(() => document.querySelector('[data-parseh-gear]'));
   await sleep(400);
   if (await page.$('.pf-bar')) await tap(page, '.pf-stay');
-  if (await page.evaluate(() => document.body.classList.contains('hovermode')) !== hover) {
-    await tap(page, '.m-rmore');
-    await tap(page, '#hovermode');
-    await tap(page, '.m-rmore');
-  }
+  if (await page.evaluate(() => document.body.classList.contains('hovermode')) !== hover)
+    await gearSwitch(page, 'hover', hover);
 }
 async function tapWord(page, sel) {
   await page.locator(sel).first().evaluate(e => e.scrollIntoView({block: 'center'}));
@@ -466,13 +464,21 @@ async function tapWord(page, sel) {
               'a cloud or a sheet');
   await sleep(250);
 }
-// the header's dictionary switch, under ⋯, pressed as a finger presses it
+// the dictionary switch, pressed as a finger presses it: in the gear's "Looking a word up" on a book's reader
+// (a0.5.0), and still under ⋯ on a video's page, which has no gear yet
 async function switchDict(page) {
-  await tap(page, '.m-rmore');
-  await page.waitForSelector('#dictmode', {state: 'visible'});
-  await tap(page, '#dictmode');
-  assert(await page.evaluate(() => document.querySelector('#dictmode').classList.contains('on')), 'the dictionary switched on, under ⋯');
-  await tap(page, '.m-rmore');
+  if (await page.evaluate(() => document.documentElement.classList.contains('pg-reader'))) {
+    await gearOpen(page, 'looking');
+    await page.waitForSelector('.pg-panel [data-pg-row=dictmode]:not([hidden])');
+    await gearSwitch(page, 'dictmode', true);
+    assert(await page.evaluate(() => document.querySelector('#dictmode').classList.contains('on')), 'the dictionary switched on, in the gear');
+  } else {
+    await tap(page, '.m-rmore');
+    await page.waitForSelector('#dictmode', {state: 'visible'});
+    await tap(page, '#dictmode');
+    assert(await page.evaluate(() => document.querySelector('#dictmode').classList.contains('on')), 'the dictionary switched on, under ⋯');
+    await tap(page, '.m-rmore');
+  }
   await sleep(300);
 }
 // the cloud's gloss lines, [class, text]
@@ -1478,7 +1484,7 @@ try {
   // others keep theirs as it was, and the glossed ones wear it darker, in
   // --dim, the theme's muted ink -- a second mark, not the first taken away
   await mk.evaluate(() => Parseh.theme.set('light'));
-  await tap(mk, '.m-rmore'); await tap(mk, '#hovermode'); await tap(mk, '.m-rmore');
+  await gearSwitch(mk, 'hover', true);
   await sleep(200);
   for (const theme of ['light', 'dark', 'sepia']) {
     await mk.evaluate(t => Parseh.theme.set(t), theme);
@@ -1823,45 +1829,51 @@ try {
   const hpWord = i => hp.locator('main .p1 .w').nth(i);
   const hpTapWord = i => hpOpenCloud(hp, () => hpWord(i).tap());
   const hpWordIn = async () => { await hpWord(0).evaluate(e => e.scrollIntoView({block: 'center'})); await sleep(400); };
-  // the header goes on the way down a page and comes back on the way up: ⋯
-  // is pressed from the top, and the words are brought back into the screen
+  // the header goes on the way down a page and comes back on the way up: the
+  // gear is pressed from the top, and the words are brought back into the screen
   const hpTop = async () => { await hp.evaluate(() => scrollTo(0, 0)); await sleep(600); };
+  // the gear is opened from the top and shut again, with fn done in it (its switch pressed, its menu set)
   const hpMore = async fn => {
     await hpTop();
-    await tap(hp, '.m-rmore');
+    await gearOpen(hp);
     await fn();
-    await tap(hp, '.m-rmore');
+    await gearClose(hp);
     await sleep(300);
     await hpWordIn();
   };
+  const hpGearSwitch = async (id, want) => { await gearOpen(hp); await gearSwitch(hp, id, want); };
   await hpWordIn();
   await hpWatch(hp);
 
-  // ---- the switch, under ⋯ -> Listening, worded and drawn as the video's
+  // ---- the switch is the layer's and the gear's: worded as the video's, kept in the header out of sight,
+  // and pressed from the gear's row "Pause while a gloss is open", under the hover cloud's
   await hpTop();
-  await tap(hp, '.m-rmore');
-  await hp.waitForSelector('#hoverpause', {state: 'visible'});
   const sw0 = await hp.evaluate(() => {
-    const b = document.getElementById('hoverpause'), r = b.getBoundingClientRect();
-    const order = id => +getComputedStyle(document.getElementById(id) || document.querySelector(id)).order;
-    const lab = document.querySelector('.m-rlab[data-g=listening]');
-    return {text: b.textContent, title: b.title, h: Math.round(r.height), w: Math.round(r.width),
-            onScreen: r.top >= 0 && r.bottom <= innerHeight && r.left >= 0 && r.right <= innerWidth,
-            layout: b.getAttribute('data-layout'), tag: b.tagName + '#' + b.id, inRow: b.parentNode === document.querySelector('header .hrow'),
-            order: [order('.m-rlab[data-g=listening]'), order('stopbnd'), order('hoverpause'), order('pos')],
-            label: !!lab && lab.getClientRects().length > 0 && !lab.classList.contains('m-empty-g'),
-            listening: getComputedStyle(b).display !== 'none'};
+    const b = document.getElementById('hoverpause');
+    return {text: b.textContent, title: b.title, layout: b.getAttribute('data-layout'), tag: b.tagName + '#' + b.id,
+            inRow: b.parentNode === document.querySelector('header .hrow'), drawn: b.getClientRects().length > 0};
   });
   eq(sw0.text, HP_ON_VIDEO, `the switch is worded as the video's (${JSON.stringify(HP_ON_VIDEO)}), the same string and the same glyph`);
   eq([sw0.tag, sw0.inRow, sw0.layout, sw0.title], ['BUTTON#hoverpause', true, null, 'pause the narration while a gloss is open'],
      'a button in the header\'s first row, with no data-layout (both modes draw it), saying what it does');
-  assert(sw0.h >= 48 && sw0.w >= 48 && sw0.onScreen, `under ⋯, a finger's size and on the screen (${sw0.w} x ${sw0.h})`);
-  assert(sw0.label && sw0.order[0] < sw0.order[1] && sw0.order[1] < sw0.order[2] && sw0.order[2] < sw0.order[3],
-         `in the Listening group: after the group's line and stop-at-a-change, before where it is (order ${JSON.stringify(sw0.order)})`);
-  eq(await hpSwitch(hp), [null, false, 'false'], 'off until it is turned on: nothing stored, not pressed');
-  await tap(hp, '.m-rmore');
+  eq(sw0.drawn, false, 'and not drawn there, in either mode: it is the gear\'s to press');
+  await gearOpen(hp, 'levels');
+  await gearRow(hp, 'hoverpause').scrollIntoViewIfNeeded();         // the sheet shows half the group: the row is brought into it
   await sleep(250);
-  assert(!(await drawn(hp, '#hoverpause')), '⋯ shut: it is not on the first line');
+  const row0 = await hp.evaluate(() => {
+    const r = document.querySelector('.pg-panel [data-pg-row=hoverpause]'), b = r.querySelector('button.pg-switch').getBoundingClientRect();
+    const hover = document.querySelector('.pg-panel [data-pg-row=hover]');
+    return {name: r.querySelector('.pg-nametext').textContent, h: Math.round(r.getBoundingClientRect().height),
+            under: hover.nextElementSibling === r, indent: r.getAttribute('data-pg-indent'), hidden: r.hidden,
+            onScreen: b.top >= 0 && b.bottom <= innerHeight && b.left >= 0 && b.right <= innerWidth};
+  });
+  eq([row0.name, row0.under, row0.indent, row0.hidden], ['Pause while a gloss is open', true, '1', false],
+     'in the gear: "Pause while a gloss is open", hanging under "Glosses in a cloud"');
+  assert(row0.h >= 48 && row0.onScreen, `a finger's height and on the screen (${row0.h}px)`);
+  eq(await hpSwitch(hp), [null, false, 'false'], 'off until it is turned on: nothing stored, not pressed');
+  await gearClose(hp);
+  await sleep(250);
+  assert(!(await drawn(hp, '#hoverpause')), 'the gear shut: it is not on the first line');
   await hpWordIn();
 
   // ---- switch OFF: nothing changes
@@ -1877,8 +1889,8 @@ try {
   await hpNote(hp, 'switch off');
   await hpStop(hp, hpPress);
 
-  // ---- turned on, under ⋯, kept on this device only
-  await hpMore(() => tap(hp, '#hoverpause'));
+  // ---- turned on, in the gear, kept on this device only
+  await hpMore(() => hpGearSwitch('hoverpause', true));
   eq(await hpSwitch(hp), ['1', true, 'true'], 'turned on: stored \'1\', pressed, aria-pressed true');
   const kept = await hp.evaluate(async () => {
     const r = await fetch('/__prefs'); const j = await r.json();
@@ -2000,7 +2012,7 @@ try {
   await hpStop(hp, hpPress);
 
   // ---- the loop's wait between two repeats: the reader's own timer, taken and given back
-  await hpMore(async () => { await tap(hp, '#loop'); await hp.selectOption('#gap', '3'); });
+  await hpMore(async () => { await hpGearSwitch('loop', true); await gearSelect(hp, 'gap', '3 s'); });
   await hp.evaluate(() => { document.getElementById('audio').currentTime = 3.3; });
   await hpClear(hp);
   await hpPress();
@@ -2019,7 +2031,7 @@ try {
   assert(lp[0][1] - tLoop >= 300, `the repeat ${lp[0][1] - tLoop} ms after the cloud shut: the grace`);
   assert((await hpAudio(hp))[1] < 2.5, `and it is the subparagraph from its start again (${(await hpAudio(hp))[1].toFixed(2)} s)`);
   await hpStop(hp, hpPress);
-  await hpMore(() => tap(hp, '#loop'));
+  await hpMore(() => hpGearSwitch('loop', false));
 
   // ---- the switch turned off under an open cloud: what it took it gives back
   await hpStart(hp, hpPress);
@@ -2036,7 +2048,7 @@ try {
   eq([await hpSeq(hp), (await hpAudio(hp))[0]], ['pause,play', false], 'and with the switch off a new cloud leaves the narration playing');
   await hpStop(hp, hpPress);
   // on again, for the last one
-  await hpMore(() => tap(hp, '#hoverpause'));
+  await hpMore(() => hpGearSwitch('hoverpause', true));
   eq((await hpSwitch(hp))[0], '1', 'turned on again');
 
   // ---- a row's tap on a chunk nobody has glossed: the sheet at once, the
@@ -2077,12 +2089,12 @@ try {
     const b = document.getElementById('hoverpause'), hm = document.getElementById('hovermode');
     return {beside: hm.nextElementSibling === b, drawn: b.getClientRects().length > 0, text: b.textContent,
             layout: b.getAttribute('data-layout'), mode: document.documentElement.getAttribute('data-mode'),
-            more: !!document.querySelector('.m-rmore') && document.querySelector('.m-rmore').getClientRects().length > 0,
+            more: !!document.querySelector('.m-rmore'),
             state: [localStorage.getItem('bk_hoverpause'), b.classList.contains('on')], title: b.title};
   });
   eq([bsw.beside, bsw.drawn, bsw.text === HP_ON_VIDEO, bsw.layout, bsw.mode, bsw.more, bsw.state],
-     [true, true, true, null, 'browser', false, [null, false]],
-     'the browser interface: the switch drawn beside hover, worded as the video\'s, off; and no ⋯');
+     [true, false, true, null, 'browser', false, [null, false]],
+     'the browser interface: the switch beside hover in the markup, worded as the video\'s, off, not drawn (the gear\'s to press); and no ⋯');
   await bd.click('#hovermode');
   const press = () => bd.click('#play');
   const word = i => bd.locator('main .p1 .w').nth(i);
@@ -2100,8 +2112,8 @@ try {
   eq([await hpSeq(bd), (await hpAudio(bd))[0]], ['', false], 'and plays on when the mouse leaves');
   await hpStop(bd, press);
   // turned on, with the mouse
-  await bd.click('#hoverpause');
-  eq(await hpSwitch(bd), ['1', true, 'true'], 'browser: turned on with a click: stored, pressed');
+  await gearSwitch(bd, 'hoverpause', true);
+  eq(await hpSwitch(bd), ['1', true, 'true'], 'browser: turned on with a click in the gear: stored, pressed');
   await hpPhaseOpenShut(bd, press, () => word(0).hover(), away, 'browser, a mouse at rest');
   await hpStop(bd, press);
   // the next word: straight across (no close between), and with a gap of a
@@ -2203,7 +2215,7 @@ try {
   await hpPlaying(bd, 'the narration going on');
   eq(await hpSeq(bd), 'pause,play', 'browser: the cloud gone, it goes on (what was taken is given back)');
   await hpStop(bd, press);
-  await bd.click('#hoverpause');
+  await gearSwitch(bd, 'hoverpause', true);
 
   // ---- the reader's OWN sheets (the browser interface's alone): each puts
   // the narration back itself, and hover ⏸ must not fight it.  a) under a
@@ -2276,7 +2288,7 @@ try {
   const md = await pageFor(DESK, 'mobile', 'hover pause, mouse in the mobile mode');
   await md.addInitScript(() => { localStorage.setItem('bk_hover', '1'); localStorage.setItem('bk_hoverpause', '1'); });
   await md.goto(B + '/books/english/mini-en/reader/');
-  await md.waitForFunction(() => document.querySelector('.m-rmore') && document.getElementById('hoverpause'));
+  await md.waitForFunction(() => document.querySelector('[data-parseh-gear]') && document.getElementById('hoverpause'));
   await sleep(400);
   if (await md.$('.pf-bar')) await md.click('.pf-stay');
   await hpWatch(md);
