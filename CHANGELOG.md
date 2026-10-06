@@ -1,3 +1,6 @@
+## [a0.5.0] - unreleased
+### Added
+
 ## [a0.4.4] - 2026-10-06
 ### Added
 - Parseh lives in the parseh-io organisation on GitHub; Settings → Updating Parseh looks in the new repository

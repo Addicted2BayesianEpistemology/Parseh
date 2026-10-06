@@ -15,6 +15,8 @@ change. A new version comes in from **Settings → Updating Parseh**
 ([Updating Parseh](../getting-started/updating.md)), which compiles this
 guide and rebuilds the readers by itself.
 
+## a0.5.0 — not yet released
+
 ## a0.4.4 — 6 October 2026
 
 ### Parseh has a home of its own on GitHub

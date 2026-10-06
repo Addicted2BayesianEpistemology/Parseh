@@ -832,7 +832,10 @@ making its own request, asked
 and was answered `200` at `api.github.com/repositories/1379498689/releases/latest`;
 the answer already names the zip and its `.sha256` under `parseh-io/Parseh`,
 and both downloaded. The same road through Settings, to a release published
-from the new home: *not yet recorded — step 11 of a0.4.4 is its test.* The owner's rule (2026-09-30) is that nobody but him had
+from the new home, **the same day**: the owner's own install (Parseh-mine,
+built before the move) found a0.4.4 with **Check now**, downloaded it,
+checked it and updated — the redirect carried it, and the zip by hand was
+not needed. The owner's rule (2026-09-30) is that nobody but him had
 installed Parseh, so no bridge release stands in the old repository: his own
 copy takes the release by the public road if the redirect holds, and by the
 zip if it does not.
