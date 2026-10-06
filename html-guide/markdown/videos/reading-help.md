@@ -14,8 +14,8 @@ and Chinese get with their readings.
 
 Three things can speak for a phrase with no vocabulary line, and each is a
 separate download on the reading-help page, in Settings,
-`/settings/reading-help/` (the **reading help** link in the player's bar
-goes there):
+`/settings/reading-help/` (**Get a dictionary for this language →**, in the player's ⚙ panel under
+**Looking a word up**, goes there):
 
 - **a dictionary** of the video's language, which looks the words up;
 - **a corpus** of sentences somebody translated, which shows real sentences
@@ -96,20 +96,19 @@ Every dictionary here is the English Wiktionary's. For most languages that
 means its senses are written in English. For **English itself** they are
 **definitions written in the language being learned** — which are worth
 reading, and which a learner may not want on every phrase. So they wait
-behind a switch of their own:
+behind switches of their own, in the ⚙ panel's **Looking a word up**:
 
-- **definitions** shows the dictionary's own definitions under each word it
+- **Show the dictionary's definitions** shows the dictionary's own definitions under each word it
   finds — the first three, and a button (**2 more definitions**, say) for
-  the rest. It is greyed out while **dictionary** is off.
-- **in italian** (or whatever the gloss language is) puts each definition
+  the rest. It is greyed out while the dictionary is off.
+- **Translate the definitions into Italian** (or whatever the gloss language is) puts each definition
   into the gloss language under it, with the translation model on this
   machine: a machine's reading, not a gloss. It is shown only when there is
-  a model, and greyed out while **definitions** is off.
+  a model, and greyed out while the definitions are off.
 
-Both buttons exist only where the dictionary defines its words in their own
+Both switches exist only where the dictionary defines its words in their own
 language. Until you have touched the first, a panel that could show
-definitions says so once: *the dictionary explains these words in English:
-“definitions”, in the header, shows what it says.*
+definitions says so once, and says where they are.
 
 ## Japanese and Chinese: the reading over the words
 
@@ -125,14 +124,15 @@ it appears in this video; the button then reads **天気: show reading**.
 A word also counts as known once every kanji in it is. The choice is kept
 in this browser, for this video.
 
-**kana** (Japanese) or **pinyin** (Chinese), in the bar, turns the whole
+**kana only** (Japanese) or **pinyin only** (Chinese), in the bar — **Show only the reading** in the
+⚙ panel — turns the whole
 transcript into its reading alone — each phrase as it is said, at the size
 of the text — which is the way to listen and read along without the
 characters. The clouds still open over it, with the text itself at their
 top. It is remembered, and it does nothing to a video of another language.
 
-The **Aa** panel has three more sliders for these two languages —
-character spacing, and for Japanese the reading's contrast and its size
+The ⚙ panel's **Text** group, which **Aa** opens, has three more sliders for these two languages —
+**Space between characters**, and for Japanese **Furigana contrast** and **Furigana size**
 against the kanji ([The player](the-player.md#aa-text-and-margins)).
 
 ## Decomposing a character

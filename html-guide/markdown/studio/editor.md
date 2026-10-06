@@ -23,6 +23,10 @@ Persian until you correct it.
 On a screen narrower than a tablet's the two panes are stacked, the source
 above the preview, and the toolbar wraps onto as many rows as it needs.
 
+The bar ends with **◐**, the colours, and **⚙ page**: a panel with the preview's
+text sizes — the same ones as the document page's — the zoom, the colours, and the
+source's direction ([The ⚙ settings of a page](../getting-started/page-settings.md#a-documents-gear-and-the-editors)).
+
 ## The front matter {#front-matter}
 
 The lines between the two `---` at the top of a document are its front
@@ -92,7 +96,8 @@ question mark and heading mark of the prose at the wrong end of its line.
 **⇤ RTL editor**, in the bar's **Editor** group, turns the whole source
 right to left; the button then reads **⇥ LTR editor**, and turns it back.
 The button always says what a click does, and its tooltip says which way
-the source goes now.
+the source goes now. The panel's **Editor** group has the same switch, **Write the source right to
+left**, remembered for this document.
 
 ![A document written in Persian about English: its source left to right, the full stops at the wrong end and the letters unjoined, then right to left, after ⇤ RTL editor](shots/rtl-editor.gif)
 

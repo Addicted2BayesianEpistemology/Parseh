@@ -836,8 +836,11 @@ html[data-sheet="dark"] :is(.pz,.modal-overlay) figure.latex img,html[data-sheet
   width: 1.7rem; height: 1.7rem; border-radius: 50%;
   display: inline-flex; align-items: center; justify-content: center;
   font-size: 1rem; padding-bottom: .2rem;}
+@font-face{font-family: "TeX Gyre Chorus"; font-display: swap;
+  src: url(fonts/texgyrechorus-mediumitalic.otf) format("opentype");}
 :is(.pz,.modal-overlay) .hublink{display: inline-flex; align-items: center; gap: .4rem; text-decoration: none;
-  color: var(--chrome-mut); font-size: .88rem; padding: .28rem .55rem .28rem .3rem;
+  color: var(--chrome-mut); padding: .28rem .55rem .28rem .3rem;
+  font-family: "TeX Gyre Chorus", "Apple Chancery", cursive; font-size: 1.2rem; line-height: 1;
   border-radius: 6px; border: 1px solid transparent; white-space: nowrap;}
 :is(.pz,.modal-overlay) .hublink:hover{color: var(--accent); border-color: var(--chrome-line);}
 :is(.pz,.modal-overlay) .hublink .glyph{font-family: "Noto Nastaliq Urdu", var(--fa-font); background: var(--accent); color: var(--accent-fg);
@@ -1002,12 +1005,22 @@ body[data-page="doc"] :is(.pz,.modal-overlay) .topbar,body[data-page="doc"] :is(
 body[data-page="doc"] :is(.pz,.modal-overlay) .topbar{position: relative; z-index: auto;}
 }
 :is(.pz,.modal-overlay) .sheet h2,:is(.pz,.modal-overlay) .sheet h3,:is(.pz,.modal-overlay) .voce{scroll-margin-top: var(--sticky-h, 4.6rem);}
-:is(.pz,.modal-overlay) .typo-group{display: flex; flex-direction: column; gap: .05rem; min-width: 130px;}
-:is(.pz,.modal-overlay) .typo-group label{display: flex; justify-content: space-between; color: var(--chrome-mut); font-size: .74rem;}
-:is(.pz,.modal-overlay) .typo-group output{font-variant-numeric: tabular-nums; color: var(--chrome-fg);}
 :is(.pz,.modal-overlay) input[type="range"]{accent-color: var(--accent); width: 100%; margin: 0;}
 :is(.pz,.modal-overlay) .typo-hint{color: var(--chrome-mut); font-size: .74rem; margin-left: auto; font-style: italic;}
-body.chrome-off :is(.pz,.modal-overlay) .topbar,body.chrome-off :is(.pz,.modal-overlay) .metabar,body.chrome-off :is(.pz,.modal-overlay) .toolbar{display: none;}
+:is(.pz,.modal-overlay) .typo-toggle[aria-expanded="true"]{border-color: var(--accentlt); color: var(--accent);}
+:is(.pz,.modal-overlay) .bar-tail{display: inline-flex; align-items: center; gap: .4rem; flex: none;
+  position: sticky; right: 0; background: var(--chrome-panel);
+  padding-inline-start: .3rem;
+  
+  margin-left: auto;}
+:is(.pz,.modal-overlay) .bar-theme{min-width: 2.1rem; justify-content: center;}
+@media (max-width: 560px), (pointer: coarse){
+:is(.pz,.modal-overlay) .bar-theme{min-width: 48px; min-height: 48px;}
+}
+@media (max-width: 560px){
+body:is([data-page="deck"], [data-page="study"], [data-page="cram"]) :is(.pz,.modal-overlay) .topbar{flex-wrap: wrap; row-gap: .35rem;}
+}
+body.chrome-off :is(.pz,.modal-overlay) .topbar,body.chrome-off :is(.pz,.modal-overlay) .m-topbar,body.chrome-off :is(.pz,.modal-overlay) .metabar,body.chrome-off :is(.pz,.modal-overlay) .toolbar{display: none;}
 :is(.pz,.modal-overlay) .bars-show{position: fixed; top: .35rem; right: .5rem; z-index: 60;
   padding: .1rem .5rem; font-size: .78rem; line-height: 1.6;
   opacity: .42; transition: opacity .15s ease;}
@@ -1365,23 +1378,22 @@ body[data-page="edit"] :is(.pz,.modal-overlay) .topbar .dropdown .menu{right: .9
 :is(.pz,.modal-overlay) .dropdown.disabled > summary{pointer-events: none; opacity: .5;}
 :is(.pz,.modal-overlay) .totop{position: fixed; left: 1rem; bottom: 1.4rem; z-index: 118;
   box-shadow: 0 4px 16px rgba(0,0,0,.18);}
-:is(.pz,.modal-overlay) .typo-toggle{display: none;}
 @media (max-width: 560px){
 :is(.pz,.modal-overlay) .topbar,:is(.pz,.modal-overlay) .toolbar{transition: transform .18s ease;}
 body.barhidden :is(.pz,.modal-overlay) .topbar,body.barhidden :is(.pz,.modal-overlay) .toolbar{transform: translateY(-100%);}
 body[data-page="doc"] :is(.pz,.modal-overlay) .topbar{position: sticky; top: 0; flex-wrap: wrap; row-gap: .35rem;}
 body[data-page="doc"] :is(.pz,.modal-overlay) .doc-title{flex: 1 1 0; min-width: 3rem;}
 body[data-page="doc"] :is(.pz,.modal-overlay) .topbar-actions{flex: 1 0 100%; margin-left: 0; flex-wrap: nowrap;
-    overflow-x: auto; overscroll-behavior-x: contain; padding-block: 2px;}
+    overflow-x: auto; overscroll-behavior-x: contain; padding-block: 2px;
+    
+    scroll-padding-inline-end: 7rem;}
 body[data-page="doc"] :is(.pz,.modal-overlay) .topbar .dropdown{position: static;}
 body[data-page="doc"] :is(.pz,.modal-overlay) .topbar .dropdown .menu{right: .9rem;}
 body[data-page="doc"] :is(.pz,.modal-overlay) .toolbar{top: var(--topbar-h, 0px); gap: .6rem 1.1rem;}
 body[data-page="doc"] :is(.pz,.modal-overlay) .navstack{display: flex; flex-direction: row; flex-wrap: wrap;}
-body[data-page="doc"]:not(.typo-open) :is(.pz,.modal-overlay) .toolbar{padding-block: .2rem; flex-wrap: nowrap;}
-body[data-page="doc"]:not(.typo-open) :is(.pz,.modal-overlay) .navstack{flex: 1 1 0; min-width: 0;}
-body[data-page="doc"] :is(.pz,.modal-overlay) .typo-toggle{display: inline-flex;}
-body.typo-open[data-page="doc"] :is(.pz,.modal-overlay) .typo-toggle{border-color: var(--accentlt); color: var(--accent);}
-body[data-page="doc"]:not(.typo-open) :is(.pz,.modal-overlay) .toolbar > :not(.navstack):not(.typo-toggle){display: none;}
+body[data-page="doc"] :is(.pz,.modal-overlay) .toolbar{padding-block: .2rem; flex-wrap: nowrap;}
+body[data-page="doc"] :is(.pz,.modal-overlay) .navstack{flex: 1 1 0; min-width: 0;}
+body[data-page="doc"] :is(.pz,.modal-overlay) .toolbar > :not(.navstack):not(.typo-toggle){display: none;}
 body.barhidden[data-page="doc"] :is(.pz,.modal-overlay) .toolbar{transform: translateY(calc(-100% - var(--topbar-h, 0px)));}
 body[data-page="doc"] :is(.pz,.modal-overlay) .metabar input{scroll-margin-top: calc(var(--topbar-h, 0px) + .5rem);}
 }
@@ -1640,6 +1652,7 @@ body[data-page="doc"] :is(.pz,.modal-overlay) figure.img:hover img,body[data-pag
   gap:10px;max-width:min(560px,94vw);padding:12px 14px;background:var(--chrome-panel);
   border:1px solid var(--accent);border-radius:12px;box-shadow:0 8px 24px rgba(0,0,0,.2);
   font-size:14.5px;line-height:1.4}
+html.pg-sheet :is(.pz,.modal-overlay) .kp-bar{display:none}
 :is(.pz,.modal-overlay) .kp-off{display:inline-flex;align-items:center;min-height:36px;padding:4px 12px;border-radius:20px;
   background:var(--warn);color:#fff;font-size:13px;text-decoration:none;white-space:nowrap}
 :is(.pz,.modal-overlay) .kp-off:hover{opacity:.9}

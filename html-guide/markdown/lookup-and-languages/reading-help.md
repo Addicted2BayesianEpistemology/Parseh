@@ -19,7 +19,7 @@ it has and what it could have.
 |---|---|
 | The hub (the Browser layout) | the door **🔍 Reading what nobody has glossed**. Its tags say what you have: **no dictionary yet**, or **1 dictionary**, **3 dictionaries**… followed by the code of every language that has one. |
 | Settings | the door **Reading help**, beside **Network**. |
-| Any book reader or video player | **reading help**, in the header, just after the **dictionary** switch (which is only there once something is installed for that language). |
+| Any book reader or video player | **Get a dictionary for this language →**, in the ⚙ panel's **Looking a word up** group. It is drawn even where nothing is installed, since it is how something gets installed; the **dictionary** switch in the header is only there once something is. |
 | A chunk nobody has glossed | when nothing at all is installed for its language, the cloud of a chunk without a vocabulary line (in a book's **hover** mode) says *nothing glossed here yet*, and under it: “A dictionary can look these words up, a corpus can show a sentence somebody translated, and a model can read the line. **Set any of them up** — it takes a couple of minutes.” The link opens this page. The player says the same under *nothing glossed yet*, in the cloud of any phrase of the video's language that nobody has glossed. |
 | **Decompose Kanji** or **Decompose Hanzi** | the dialog's **Open dictionary & component setup**, **Manage component packs and fallback coverage** and **Open setup** links, which open the page at the character components of Japanese (or of Chinese, when that is the one on your shelf) |
 | The address bar | `/settings/reading-help/` on the server |

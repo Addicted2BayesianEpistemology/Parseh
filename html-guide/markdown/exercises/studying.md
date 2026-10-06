@@ -168,5 +168,6 @@ order — carry arrows on every block, and a switch in their head,
 **✥ dragging on** / **✥ dragging off**. Where the pointer is a finger,
 dragging starts turned off and the arrows move the blocks; the switch turns
 dragging on, and is remembered by the browser for every page, the study page
-included.
+included. The same switch is **Drag to answer** in the page's **⚙ page** panel, under
+**Exercises** ([The ⚙ settings of a page](../getting-started/page-settings.md#an-exercise-decks-gear)).
 {{< /details >}}

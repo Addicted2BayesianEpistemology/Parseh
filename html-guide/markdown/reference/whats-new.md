@@ -17,6 +17,96 @@ guide and rebuilds the readers by itself.
 
 ## a0.5.0 — not yet released
 
+### One panel of settings on every page: ⚙ page
+
+A book's reader, a video's player, a studio document and its editor, and an
+exercise deck with its study and cram screens each have a **⚙ page** button in
+the bar — a plain **⚙** on a phone — and one panel behind it with every setting
+of that page. A row is a name, a sentence and a control; a group says whether
+its settings are saved on this device or follow you to your other devices. On a
+phone the panel is a sheet from the foot of the screen, half the screen high,
+with the text still showing above it, and it takes the place of the **⋯**
+menu. **Aa** opens it at its **Text** group, and the type controls of the
+studio — the sliders in a document's toolbar, and the sheet's own theme menu —
+are in it now: there is one set of sliders, and one theme. The **Browser |
+Mobile** switch moved into its **Interface** group on the pages that have it
+(the hub keeps its own in its bar), and the page's **◐** button is on every
+bar now. It is not the hub's **⚙ Settings**, which is still for Parseh itself.
+See [The ⚙ settings of a page](../getting-started/page-settings.md).
+
+### Page zoom
+
+Everything on a page — the bars, the buttons, the clouds, the sheets, the
+subtitles — can be made bigger or smaller together, from 70 to 200 % in a
+browser's own steps, for the whole of Parseh on this device: the hub, the
+shelves, Settings and the pages. It is for the places that have no **Ctrl +**
+and **Ctrl −**, the installed app and a phone. A step that would make the page
+narrower than 320 pixels is refused, with the reason, so a phone held upright
+goes up to 110 % and held sideways to 200 %. It was made and tried in Chromium;
+Firefox and Safari have not been tried yet. See [Page zoom](../getting-started/page-settings.md#page-zoom).
+
+### Levels have names
+
+The buttons that show and hide a book's levels carry names — **With vowels**,
+**Chunks**, **Plain** and **Nastaliq** in a Persian book, **Sentence** and
+**Chunks** in an English one, **Furigana**, **Kana only**, **Chunks**,
+**Plain** and **Vertical** in a Japanese one — and no numbers, under the word
+*levels*; the sentence a level's tooltip says is reworded to say what it shows.
+You can call a level anything of up to twelve characters in the panel, one name
+for each language, and it follows you to your other devices. See [Levels and
+their names](../books/levels.md).
+
+### Diacritics
+
+A Persian or an Arabic book, and a video whose lines hold vowel marks, can put
+the small marks that write the vowels, the doubling and the silent stop away
+from the screen: the first two levels of a book, and the lines of a video. The
+third level, **Plain**, is as it was; the files, the search, the cards and the
+PDF are untouched, and so is what the cloud's **copy** button and a card
+carry. It is a switch in the panel, on this device. See [Diacritics](../books/levels.md#diacritics).
+
+### Review later
+
+Flag a chunk of a book or a phrase of a video without stopping — the cloud's
+**review later**, the **L** key, a **⚑** beside the pencil, a held finger on a
+touch screen — and it wears a dotted line, in every level and in a video's
+phrases and subtitles. A button, **⚑ later**, opens the list: go
+to a chunk, remove it (with an **Undo**), make its card or the cards one after
+another, **Test myself**, **Copy the list**. The hub has a door, **Review
+later**, and a page with every flag from every book and video. The flags are
+yours: they follow you to your other devices, a phone keeps its own until it
+can tell the computer, and none is ever written into a book or its bundle. See
+[Review later](../books/review-later.md).
+
+### Plainer names on the page's own buttons
+
+**continuous** is **keep going**, and is remembered now; the **gap** is **between
+repeats**; **⌃ bars** is **⌃ hide bars** (and **⌄ show bars**); in a book, **follow**
+is **highlight** and **scroll to it** is **keep in view**, and both are drawn only
+while **listen** is on; in the player, **follow** is **keep in view**, **pin** is
+**keep video**, **◫ side** is **beside the text**, and **kana** and **pinyin** are
+**kana only** and **pinyin only**. **hover ⏸** is **Pause while a gloss is open**
+and **stop at a change** is **Wait at each new chapter**, and the two now live in
+the panel only. In a document the sliders read **Persian text size**, **Latin
+text size**, **Text width**, **Line spacing** and **Headword size**, and the
+sheet's drag button reads **✥ dragging on**. See [The reader](../books/reader.md),
+[Playing and listening](../books/listening.md) and [The video player](../videos/the-player.md).
+
+### The foot's GitHub link, and the name in Chorus
+
+The **GitHub** link at the foot of the hub, of Settings and of the guide leads to
+Parseh's own repository; Licences, About and the README keep the link to the
+author's profile. The name **Parseh** in the bar of every page of Parseh and in the hub's
+title is set in TeX Gyre Chorus, the face the website sets it in.
+
+### Fixed
+
+Two pages writing the settings file at the same moment no longer make one of the
+writes fail — the reading place, the flags and the settings take turns. On a
+phone, **◐** on a document's page set the colours and left the sheet as it was;
+the studio's pages now follow the same colours as the rest, at once, on every
+device.
+
 ## a0.4.4 — 6 October 2026
 
 ### Parseh has a home of its own on GitHub

@@ -2,7 +2,7 @@
 title: The video player
 linkTitle: The player
 weight: 2
-description: Reading a transcript while the video plays, every control in the bar, side by side, the grip, and phones.
+description: Reading a transcript while the video plays, every control in the bar and the ⚙ panel, beside the text, the grip, review later, and phones.
 ---
 
 ![The player side by side: the film on the left, the spoken line lit, a gloss cloud open over a phrase](shots/player.png)
@@ -68,8 +68,8 @@ sound, whole, with the playing place on it. **Press anywhere on it** to go
 there, or drag along it to scrub; the browser's own play controls are under
 it, and a hairline at its foot marks where each caption starts. On a phone
 it fills the same place. Everything on this page works as it does for a film
-— the lit line, **follow**, **hover ⏸**, a click to replay, the clouds, the
-cards — except what needs a picture: the grip and **◫ side** are not drawn,
+— the lit line, **keep in view**, **Pause while a gloss is open**, a click to replay, the clouds, the
+cards — except what needs a picture: the grip and **beside the text** are not drawn,
 and a card has no *frame*, only the recording cut out of the sound. Without
 ffmpeg the bar is a plain track, and says so.
 
@@ -93,11 +93,14 @@ ffmpeg the bar is a plain track, and says so.
   vocabulary goes into the notes as plain text, never with its macros.
 
 The cloud also has **✎ edit** and a row of four colours, which write into
-the video: see [Editing a phrase](editing-a-phrase.md).
+the video: see [Editing a phrase](editing-a-phrase.md). And **review later**,
+which flags the phrase to come back to ([Review later](#review-later)).
 
 ## The bar
 
-Every control, left to right:
+Every control, left to right. What the bar keeps in reach is what you press while
+watching; the rest is in the **⚙ page** panel, at the right end
+([The ⚙ settings of a page](../getting-started/page-settings.md)):
 
 | Control | What it does |
 |---|---|
@@ -109,24 +112,26 @@ Every control, left to right:
 | **the timings** | moves where each caption starts, opening at the caption you are on ([The timings](the-timings.md)) |
 | **gloss with an LLM** | a panel that copies a prompt for a run of captions you pick, and fills in the answer where nobody has glossed ([Glossing captions with an LLM](glossing-with-an-llm.md)) |
 | `0:14 / 0:40` | where the video is, and how long it is |
-| **follow** | keeps the spoken line in view (on until you turn it off) |
-| **hover ⏸** | pauses the video while a cloud is open (off until you turn it on) |
+| **keep in view** | keeps the spoken line in view (on until you turn it off) |
+| **⚑** *3* | the phrases you flagged to come back to, and how many are in this video ([Review later](#review-later)) |
 | **✱ notes** | lights every phrase that carries a note, counts them, and walks from one to the next with **‹** and **›** (off on every visit; not in the mobile interface) |
 | **dictionary** | reading help under a phrase nobody glossed; shown once there is something to help with ([Reading help](reading-help.md)) |
-| **definitions**, **in english** | the dictionary's own definitions, and the same translated; only where the dictionary defines its words in their own language |
-| **kana** / **pinyin** | Japanese and Chinese: the transcript as its reading alone |
-| **reading help** | the page that sets up dictionaries, corpora and translation models, in Settings: `/settings/reading-help/` |
-| **◫ side** | the video beside the transcript instead of above it (not drawn for [a sound](#a-sound), which has no picture to put there) |
-| **pin** | keeps the video in view while you scroll (on until you turn it off) |
+| **kana only** / **pinyin only** | Japanese and Chinese: the transcript as its reading alone |
+| **beside the text** | the video beside the transcript instead of above it (not drawn for [a sound](#a-sound), which has no picture to put there) |
+| **keep video** | keeps the video in view while you scroll (on until you turn it off) |
 | **○** / **●** / **◐** | the theme — light, dark, sepia — one setting for the whole toolbox |
-| **Aa** | text and margins |
+| **Aa** | opens the ⚙ panel at its text sizes and margins ([below](#aa-text-and-margins)) |
+| **⚙ page** | every setting of this page in one panel: the three above that rest in it, the dictionary's definitions and the way to get a dictionary, the speed and the skip, the sizes, the zoom, the colours |
 | **⏻** | stops the Parseh server |
 | **Decompose Kanji** / **Decompose Hanzi** | Japanese and Chinese: a character's components ([Reading help](reading-help.md#decomposing-a-character)) |
 
 A button that is lit (filled with the accent colour) is on. Every one of
 these switches is remembered in this browser and holds for every video —
 except **✱ notes**, which is a tool for looking and is off every time the page
-opens.
+opens. What is in the panel and not in the bar: **Pause while a gloss is open**,
+**Show the dictionary's definitions**, **Translate the definitions into** *the
+gloss language*, **Get a dictionary for this language →**, **Diacritics**, **Video
+size**, **Skip distance**, and **Show the lines around** on a phone.
 
 **There is no speech to text here.** The player has no *transcribe* button,
 no *transcribe again* and no speech model to choose, and none of it is
@@ -134,17 +139,19 @@ loaded on this page: a transcript that speech to text made was made on the
 [add page](adding-a-video.md#speech-to-text), before the video was added, and
 is edited from then on like any other.
 
-### follow
+### keep in view
 
-With **follow** on, the page scrolls as the video plays so that the spoken
+With **keep in view** on, the page scrolls as the video plays so that the spoken
 line stays on screen. It waits for you: for two and a half seconds after
 you turn the mouse wheel or drag the page with a finger, it leaves the page
 where you put it, so you can read ahead or look back without a fight.
-Turning **follow** on brings the spoken line back into view at once.
+Turning **keep in view** on brings the spoken line back into view at once. In the
+panel it is **Keep the playing caption in view**.
 
-### hover ⏸
+### Pause while a gloss is open
 
-With **hover ⏸** on, pointing at a phrase pauses a playing video, and
+With **Pause while a gloss is open** on — in the ⚙ panel's **Watching & reading**,
+where it has no button in the bar — pointing at a phrase pauses a playing video, and
 moving off it lets the video go on — after a third of a second, so that
 moving from one phrase to its neighbour does not make it stutter. It turns
 the page into something you read at your own pace without touching the
@@ -187,19 +194,22 @@ bare — one marked plain, which has no cloud — is lit and counted too if the
 file gives it a note, since there is nowhere else to see it. It is a button of
 the browser interface: the mobile interface, which writes nothing, has none.
 
-### pin, and the grip
+### keep video, and the grip
 
-With **pin** on (the default), the video stays stuck under the bar while
+With **keep video** on (the default), the video stays stuck under the bar while
 the transcript scrolls beneath it. Off, it scrolls away with the page,
-which leaves the whole window to the text.
+which leaves the whole window to the text. In the panel it is **Keep the video in
+view**.
 
 The little pill under the video is a **grip**. Drag it down for a bigger
 video, up for a smaller one — the height follows the width, at 16:9 — and
-double-click it to go back to the default size. The size is remembered.
+double-click it to go back to the default size. The size is remembered. The
+panel's **Video size** is the same size on a slider, from the smallest the
+window allows to the largest, with its width in pixels beside it.
 
-### Side by side
+### Beside the text
 
-**◫ side** puts the video in a column on the left and the transcript on the
+**beside the text** (**Video beside the text** in the panel) puts the video in a column on the left and the transcript on the
 right. On a wide screen it is usually the better way to work: the video
 keeps a decent size instead of being squeezed into the top of the window,
 and far more of the transcript is in view at once.
@@ -207,8 +217,8 @@ and far more of the transcript is in view at once.
 - The grip becomes the **divider** between the two columns and drags
   sideways; the video fills whatever width you give its column, from a
   narrow one up to about three quarters of the window.
-- **pin** is greyed out: beside the text the video is always in view, so
-  there is nothing left for pinning to decide.
+- **keep video** is greyed out: beside the text the video is always in view, so
+  there is nothing left for it to decide.
 - The two layouts remember **their own sizes**, because the grip resizes a
   different thing in each; a double-click forgets the size of the layout
   you are in.
@@ -218,21 +228,33 @@ and far more of the transcript is in view at once.
 
 ### Aa: text and margins
 
-**Aa** opens a small panel, **text & margins**, of sliders that apply at
+**Aa** opens the ⚙ panel at its **Text** group: sliders that apply at
 once and are remembered in this browser:
 
 | Slider | Range | Starts at |
 |---|---|---|
-| the language's name (**Persian**, **Japanese**…) — the transcript's text | 7–43 px | 20 px |
-| **subtitles** (a phone held sideways, in the mobile mode) — the words over the video on the whole screen | 6–48 px | 20 px |
-| **glosses** — the text of the cloud | 7–23 px | 12.5 px |
-| **width** — the transcript's column, never wider than the screen | 200–1680 px | 760 px |
-| **leading** — the space between lines | 0.5–1.9 × | 1 × |
-| **character spacing** (Japanese and Chinese) — below 0 the characters are set closer, until they touch | −0.1 to 1.5 em | 0 |
-| **reading contrast** (Japanese) — how dark the kana over the kanji are, from the quiet grey (0) to full ink (100); below 0 the grey fades further | −60 to 100 % | 0 |
-| **reading / kanji size** (Japanese) — the kana's size against the kanji's | 10–310 % | 50 % |
+| ***Persian* text size** (the video's language: **Japanese**…) — the transcript's text | 7–43 px | 20 px |
+| **Subtitle size** (a phone's layout; the words over the video on the whole screen) | 6–48 px | 20 px |
+| **Gloss size** — the text of the cloud | 7–23 px | 12.5 px |
+| **Text width** — the transcript's column, never wider than the screen | 200–1680 px | 760 px |
+| **Line spacing** — the space between lines | 0.5–1.9 × | 1 × |
+| **Space between characters** (Japanese and Chinese) — below 0 the characters are set closer, until they touch | −0.1 to 1.5 em | 0 |
+| **Furigana contrast** (Japanese) — how dark the kana over the kanji are, from the quiet grey (0) to full ink (100); below 0 the grey fades further | −60 to 100 % | 0 |
+| **Furigana size** (Japanese) — the kana's size against the kanji's | 10–310 % | 50 % |
 
-**reset** puts every slider back; **✕** or Esc closes the panel.
+**Put the text back to normal** puts every slider back; **✕**, **Aa** again or Esc closes
+the panel. On a phone held sideways with the video on the whole screen there is no
+⚙: its **Aa** opens a small panel of its own with the subtitles' size and the
+glosses'.
+
+### Diacritics
+
+A Persian or Arabic video whose lines are written with the small vowel marks has
+one more row in the panel, **Watching & reading → Diacritics**: off, the
+lines are drawn without the marks, as the language is ordinarily printed, and each
+phrase still opens its cloud. Only what is drawn changes — copying, cards, the
+editor and every lookup keep the phrase as it was written. A video whose captions
+hold no marks has no such row ([Levels and their names](../books/levels.md#diacritics)).
 
 ### ⏻
 
@@ -240,6 +262,19 @@ once and are remembered in this browser:
 — a download being packed, a video being added — it names it first and asks
 whether to stop anyway, because stopping cuts it off. Every page of Parseh
 has the same button.
+
+## Review later {#review-later}
+
+To come back to a phrase without breaking the pace, flag it: **review later** in the
+phrase's cloud, the **L** key with the pointer on the phrase, or — on a touch
+screen — a held finger on a word. A flagged phrase wears a dotted line, and the
+**⚑** button in the bar, with the number flagged, opens the list: each phrase with its gloss and its time,
+**▶** to seek the video to the caption and play it, **✕** to remove it, **+ card** to make its card
+(on a computer), **Test myself** and **Copy the list**. The flags are yours — they follow
+you to your other devices and are never written into the video. [Review
+later](../books/review-later.md) has all of it.
+
+![The player with two phrases flagged and the list open on the right: each phrase with its gloss and its time, and the buttons ▶, + card and ✕](shots/later-player.png)
 
 ## A link to a moment
 
@@ -280,7 +315,11 @@ and a second tap closes it — on any screen, including one that claims a
 hover it never delivers. A tap elsewhere on the line still plays it from its
 beginning. On a narrow screen the bar slides out of the way as the page
 moves down and comes back on the smallest move up, bringing the video with
-it; a desktop is left exactly as it is.
+it; a desktop is left exactly as it is. On a phone the bar has **⚙**:
+the page's panel opens as a sheet from the foot of the screen, with everything the bar
+does not keep in reach — and, in its last group, **Use it without the computer**,
+which keeps the video on the phone for when the computer cannot be reached
+([Browser and Mobile](../getting-started/mobile-mode.md)).
 
 In the toolbox's Mobile mode, a hardware keyboard's **←** and **→** skip the
 video by the same chosen seconds as ↺ and ↻. Shift changes nothing for a

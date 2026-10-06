@@ -40,10 +40,15 @@ LaTeX Project Public License 1.3c or later, with a request to rename a
 modified font. Their copyright is not in `OFL.txt`: that file is the SIL
 licence's, and carries the notices of the faces under it alone.
 
-**TeX Gyre Chorus** (one face, medium italic) is the odd one out: it sets the name *Parseh*
-in the bar of the guide published at parseh.io/guide, as it does on the website, and
-it is copied only into that layout (`html-guide/engine/bar.py`), not into the guide an
-install carries, nor into the studio. Same authors, same licence.
+**TeX Gyre Chorus** (one face, medium italic) is the odd one out: no document is set in it.
+It sets the *name* Parseh, as it does on the website: in the bar of every page of Parseh
+and in the big title at the top of the hub (`lib/parseh.css` and `lib/mobile.css`, which
+load it from here), in the studio's bars (`markdown/app/static/app.css` and `mobile.css`;
+the studio copies it into `markdown/app/static/fonts/` with the others), and in the bar of
+the guide published at parseh.io/guide (`html-guide/engine/bar.py`). The guide's own
+header, *Parseh guide*, is not set in it; the guide's build copies the file with the other
+faces because the studio's stylesheet, which it carries, names it. Same authors, same
+licence.
 
 ## Adding a face
 

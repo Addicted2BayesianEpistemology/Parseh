@@ -18,7 +18,8 @@ things help, all on this machine, and none of them is a gloss:
   chunk — settle which of the senses on the list is the live one.
 
 They are installed once, with buttons, on the **reading help** page
-(Settings, `/settings/reading-help/`), which the header's **reading help** link opens; the Lookup and
+(Settings, `/settings/reading-help/`), which **Get a dictionary for this language →**, in the
+⚙ panel's **Looking a word up**, opens; the Lookup and
 languages section of this guide goes through it. A reader with none of them
 is exactly the reader it always was.
 
@@ -41,13 +42,14 @@ exactly as it did.
 **English is explained in English.** Every dictionary here is the English
 Wiktionary's, which explains the words of every language in English — for
 Persian a translation, but for English itself a *definition*, in the very
-language you are learning. So a book in English has two more switches:
-**definitions** (off until turned on) shows Wiktionary's definitions under
+language you are learning. So a book in English has two more switches, in the
+⚙ panel's **Looking a word up**: **Show the dictionary's definitions** (off until
+turned on) shows Wiktionary's definitions under
 each word, with their labels (*transitive*, *countable*, *slang*), the
 first three at once and the rest behind **N more definitions**; and, where a
-translation model into the language of your glosses is installed, **in
-*italian*** (named after that language) puts each definition into it,
-underneath — a machine's reading of a definition, labelled so. Off, an entry
+translation model into the language of your glosses is installed, **Translate
+the definitions into *Italian*** (named after that language) puts each definition
+into it, underneath — a machine's reading of a definition, labelled so. Off, an entry
 still gives the headword, how it is said, its part of speech, how it was
 reached and a verb's forms.
 

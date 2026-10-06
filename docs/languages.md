@@ -431,6 +431,16 @@ the mechanism:
 | it, fr, de, tr, en, es | plain text | nothing | (no bare pass) |
 | hi | plain text; Devanagari writes its vowels | nothing | (no bare pass) |
 
+**Diacritics** (a0.5.0) puts the very same marks away from what is drawn -- the one
+rule, whichever page: from a book's levels 1 and 2 (`lib/gear-reader.js`: the text nodes
+of `.p1 .w` and of the chunk column are changed, the originals kept, and `textOf` and
+`Parseh.baseText` are given a copy with the book's own text, so a card or a copy
+carries the vowelled chunk) and from a video's lines (`youtube/lib/player.js`,
+`asDrawn()`; the copy, the cards, the editor and every lookup read the chunk as it was
+written). Display only: level 3 is unchanged -- it never had the marks, and `bare_strip`
+and the LaTeX `frank_strip` are not touched -- and a language whose record has no `strip`
+has no such switch. It is a device key (`bk_marks`, `yt_marks`), never in `prefs.KEYS`.
+
 Fidelity checks (`assemble.py`, `check_batch.py`, `verify_book.py`,
 `check_annotations.py`) strip with the language's `strip`; the LaTeX
 preamble's `frank_strip` does the same for the same language. `timings.json`

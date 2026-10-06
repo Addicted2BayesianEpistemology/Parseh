@@ -30,7 +30,10 @@ And its buttons:
 | **Options…** | Daily limits, learning steps and intervals: [Deck options](options.md). |
 | **Delete deck…** | Moves the deck to `exercises/.trash/`, after asking. |
 
-**← All decks** in the top bar goes back to the decks page.
+**← All decks** in the top bar goes back to the decks page. At the bar's right end,
+**◐** turns the colours and **⚙ page** opens the page's panel — the text sizes, the
+exercise switches **Hide transliterations** and **Drag to answer**, the zoom
+([The ⚙ settings of a page](../getting-started/page-settings.md#an-exercise-decks-gear)).
 
 ### Renaming a deck
 

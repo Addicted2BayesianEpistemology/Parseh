@@ -81,8 +81,8 @@ down. A chapter file reads like this (from the English fixture, cut short):
 contents and the PDF's outline: *chapter.paragraph*, in the language's own
 digits (۱.۱ in Persian), then the paragraph's opening words. `\parnum` labels
 a subparagraph *paragraph.subparagraph*. One `frank` block is one
-subparagraph, and is what makes the passes: its chunks are read once to fill
-pass 1 before the chunks are set. `\chapname` and `\secmark` are what the
+subparagraph, and is what makes the levels: its chunks are read once to fill
+the first level before the chunks are set. `\chapname` and `\secmark` are what the
 **chapters and sections** sheet writes ([Contents, sections and
 folding](doc:Contents, sections and folding)).
 

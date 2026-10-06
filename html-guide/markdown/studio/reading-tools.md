@@ -119,9 +119,11 @@ In an exercise's head, beside its kind:
   Escape or **✕** closes the window.
 - **Hide transliterations** / **Show transliterations**, on a card that has
   a transliteration: one switch for every flashcard, remembered in this
-  browser.
+  browser. It is the same switch as **Hide transliterations** in the ⚙ panel's
+  **Exercises** group: turn one and the other follows.
 - **✥ dragging on** / **✥ dragging off**, on an exercise whose blocks are
-  put in order: whether the blocks can be dragged. It starts off on a touch
+  put in order: whether the blocks can be dragged — **Drag to answer** in the ⚙ panel's
+  **Exercises** group, the same switch. It starts off on a touch
   screen, where the arrows on each block work better, and the choice is
   remembered in this browser for every page.
 - **+ Deck** — below.

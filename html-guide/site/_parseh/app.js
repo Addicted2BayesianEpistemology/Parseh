@@ -1393,15 +1393,17 @@ function syncStickyOffset() {
   }
 }
 
-/* On a phone the toolbar holds the way to the contents and the glosses, and
-   "Aa", which opens the typography controls under them: sliders in a row
-   that scrolled sideways took the finger that meant to scroll the row, and
-   moved a setting every document shares.  Nothing of it shows on a wide
-   screen, where the controls are always there (app.css). */
+/* The toolbar holds the way to the contents and the glosses, and "Aa", which
+   opens the gear at its Text group (static/gear.js): the sliders that used to
+   open under it, in a row that scrolled sideways, took the finger that meant
+   to scroll the row, and moved a setting every document shares.  They are
+   rows of a panel now, on a phone a sheet over the foot of the screen. */
 /* THE BARS, PUT AWAY BY HAND.  Three of them stand over a reading page --
-   the topbar, the tags, the typography -- and once the text is set the way
-   somebody wants it, they are in the way.  "⌃ bars" takes all three off and
-   leaves one faint button in the corner; pressing that brings them back.
+   the topbar, the tags, the toolbar -- and once the text is set the way
+   somebody wants it, they are in the way.  "⌃ hide bars" takes all three off
+   and leaves one faint button in the corner ("⌄ show bars"); pressing that
+   brings them back.  The gear's "Hide the bars" is the same switch
+   (setBarsOff), and says so to the page's own two buttons and to itself.
 
    Remembered for every document and not for one: it is a way of reading, not
    a property of a page, and a reader who has cleared the window does not want
@@ -1430,25 +1432,34 @@ function dragIsOn() {
   // nothing said yet: a coarse pointer is a finger, and a finger drags badly
   return !(window.matchMedia && matchMedia("(pointer: coarse)").matches);
 }
+// ONE SWITCH, TWO BUTTONS (a0.5.0): the one on an exercise and the gear's
+// "Drag to answer" turn the same choice, and every sheet of the page follows
+// at once (bindExercises listens for `parseh:studio`) -- a sheet drawn later
+// reads the choice when it is bound
 function setDragOn(v) {
   dragChoice = !!v;
   try { localStorage.setItem(DRAG_KEY, v ? "1" : "0"); } catch (e) { /* private mode */ }
+  document.dispatchEvent(new CustomEvent("parseh:studio", {detail: {what: "drag"}}));
 }
 
 const BARS_KEY = "parseh_bars_off";
 function barsAreOff() {
   try { return localStorage.getItem(BARS_KEY) === "1"; } catch (e) { return false; }
 }
+// bindBarsToggle's own `set`, where this page has the two buttons
+let barsApply = null;
+function setBarsOff(v) { if (barsApply) barsApply(!!v, "gear"); }
 function bindBarsToggle() {
   const off = $("#btn-bars"), on = $("#btn-bars-show");
   if (!off || !on) return;
-  const set = (v, byHand) => {
+  // `how`: nothing at load, "hand" from the page's own two buttons, "gear" from the gear's switch
+  const set = (v, how) => {
     // A bar that goes or comes moves the text under it, and the browser
     // would scroll to keep the text where it was: the phone's scroll
     // watcher must not read that as a reader's move.  Only when a hand
     // moved it, though -- held at load, the watcher would sit out the jump
     // a link to a heading makes, and the bars would stand over it.
-    if (byHand) holdBars(400);
+    if (how) holdBars(400);
     document.body.classList.toggle("chrome-off", v);
     off.hidden = v;
     on.hidden = !v;
@@ -1456,21 +1467,14 @@ function bindBarsToggle() {
     on.setAttribute("aria-expanded", String(!v));
     try { localStorage.setItem(BARS_KEY, v ? "1" : "0"); } catch (e) { /* private mode */ }
     measureSticky();               // no bar to clear: a jump lands at the text
-    if (byHand) (v ? on : off).focus({preventScroll: true});
+    // the focus follows the button that was pressed -- not the gear's switch, which keeps it
+    if (how === "hand") (v ? on : off).focus({preventScroll: true});
+    document.dispatchEvent(new CustomEvent("parseh:studio", {detail: {what: "bars"}}));
   };
-  off.addEventListener("click", () => set(true, true));
-  on.addEventListener("click", () => set(false, true));
-  set(barsAreOff(), false);
-}
-
-function bindTypoToggle() {
-  const b = $("#btn-typo");
-  if (!b) return;
-  b.addEventListener("click", () => {
-    holdBars(400);
-    const open = document.body.classList.toggle("typo-open");
-    b.setAttribute("aria-expanded", String(open));
-  });
+  barsApply = set;
+  off.addEventListener("click", () => set(true, "hand"));
+  on.addEventListener("click", () => set(false, "hand"));
+  set(barsAreOff(), "");
 }
 
 /* ---------------- glosses: table + flashcards ----------------
@@ -1796,10 +1800,13 @@ const TYPO_DEFAULTS = {fa: null, base: 17, lead: 1.45, voce: 3.4,
 
 /* The whole toolbox shares one theme preference -- `parseh_theme`, the ◐
    button on every other page, which cycles light / dark / sepia.  The sheet
-   has the same three under its own names (paper, dark, sepia), so it
-   FOLLOWS the shared one until a theme is picked in its selector; from then
-   on its own choice wins.  `auto`, the value before anything is picked,
-   means the system decides between paper and dark. */
+   has the same three under its own names (paper, dark, sepia), and it IS the
+   shared one: the sheet had a menu of its own once, and a pick made there
+   outranked ◐ -- so one page could be dark while the rest of the toolbox was
+   light.  There is one control now (◐, or Colours in the gear), and a `theme`
+   an older build wrote into `exlex-typo` is not read at all.  `auto`, the
+   value before anything is picked, means the system decides between paper
+   and dark. */
 function sharedSheetTheme() {
   try {
     const s = localStorage.getItem("parseh_theme") || "auto";
@@ -1811,16 +1818,16 @@ function sharedSheetTheme() {
 
 function loadTypo(id) {
   let t = Object.assign({}, TYPO_DEFAULTS);
-  let chosen = false;
   for (const key of ["exlex-typo:global", id ? "exlex-typo:" + id : null]) {
     if (!key) continue;
     try {
-      const saved = JSON.parse(localStorage.getItem(key) || "{}");
-      if ("theme" in saved) chosen = true;
-      Object.assign(t, saved);
+      Object.assign(t, JSON.parse(localStorage.getItem(key) || "{}"));
     } catch (e) { /* ignore */ }
   }
-  if (!chosen) { t.theme = sharedSheetTheme(); t.themeFollows = true; }
+  // `themeFollows` says the theme is the toolbox's and not the reader's own
+  // (the exported page, which has no ◐, starts from its own instead)
+  t.theme = sharedSheetTheme();
+  t.themeFollows = true;
   const L = lang();
   // a record written before the script was noted beside the scale is a
   // Persian one (the only language there was), so it keeps its value for
@@ -1832,9 +1839,9 @@ function loadTypo(id) {
 }
 
 function saveTypo(id, t) {
-  // a followed theme is never written down, or it would stop following
+  // the theme is the toolbox's, never the sheet's own: it is not written down
   const out = Object.assign({}, t);
-  if (out.themeFollows) delete out.theme;
+  delete out.theme;
   delete out.themeFollows;
   try {
     localStorage.setItem("exlex-typo:global", JSON.stringify(out));
@@ -1855,73 +1862,127 @@ function applyTypo(t) {
   else delete document.body.dataset.theme;
 }
 
-function bindTypoControls(id, onChange) {
-  const t = loadTypo(id);
-  const els = {
-    fa: $("#sl-fa"), base: $("#sl-base"), lead: $("#sl-lead"),
-    voce: $("#sl-voce"), width: $("#sl-width"),
-    justify: $("#ck-justify"), theme: $("#sel-theme"),
+/* THE TYPOGRAPHY OF A PAGE, ONE STATE FOR EVERYTHING THAT TOUCHES IT (a0.5.0).
+   The text size, the width of the column, the leading, the headwords' size and
+   the justifying were five sliders and a tick in the document's own toolbar,
+   each bound by hand.  They are rows of the gear now (static/gear.js), the
+   edit page has them too, and four of them are on the pages of exercises.  So
+   the state is no control's any more: it is the two keys of localStorage
+   (loadTypo and saveTypo above) and this object, which reads them afresh at
+   every ask -- the other page's change, another tab's, is never one behind --
+   applies what it writes to every sheet of the page at once (the reading
+   sheet, the editor's preview, an exercise's stage) and tells whoever asked
+   (`subscribe`: the gear's rows).  The PDF is built at `get().fa`.  `use(id)`
+   names the document the page is of: a document writes its own key as well as
+   the shared one, a page of exercises writes the shared one alone. */
+const studioTypo = (() => {
+  let id = null;
+  const subs = new Set();
+  const tell = t => subs.forEach(fn => { try { fn(t); } catch (e) { /* the listener's own fault */ } });
+  const put = t => { saveTypo(id, t); applyTypo(t); tell(t); return t; };
+  return {
+    use(docId) { id = docId || null; },
+    id: () => id,
+    get: () => loadTypo(id),
+    set(patch) {
+      const t = loadTypo(id), was = t.base;
+      Object.assign(t, patch);
+      // The column width follows the Latin size through whatever ratio the two
+      // hold at the moment (as when the width was in em).  Moving the width
+      // itself rebases that ratio: nothing is stored of it, so the next change
+      // of the size scales from where the width is NOW, never snapping back to
+      // where it "would have been".
+      if ("base" in patch && !("width" in patch) && was > 0)
+        t.width = Math.max(420, Math.min(1400, t.width / was * t.base));
+      return put(t);
+    },
+    // the PDF's own: what a document starts from, the language's scale for its script
+    reset() {
+      const L = lang();
+      const t = Object.assign({}, TYPO_DEFAULTS, {fa: defaultScale(L), faScript: L.script});
+      t.theme = sharedSheetTheme();
+      t.themeFollows = true;
+      return put(t);
+    },
+    // worn again and told again: another tab wrote, the language changed, the theme moved
+    refresh() { const t = loadTypo(id); applyTypo(t); tell(t); return t; },
+    subscribe(fn) { subs.add(fn); return () => subs.delete(fn); },
   };
-  const outs = {fa: $("#out-fa"), base: $("#out-base"),
-                lead: $("#out-lead"), voce: $("#out-voce"),
-                width: $("#out-width")};
-  const lbl = $("#lbl-fa");
-  if (lbl) lbl.textContent = lang().name;
-  const refresh = () => {
-    if (outs.fa) outs.fa.textContent = Number(t.fa).toFixed(2) + "×";
-    if (outs.base) outs.base.textContent = t.base + "px";
-    if (outs.lead) outs.lead.textContent = Number(t.lead).toFixed(2);
-    if (outs.voce) outs.voce.textContent = Number(t.voce).toFixed(1) + "×";
-    if (outs.width) outs.width.textContent = Math.round(t.width) + "px";
-    if (els.fa) els.fa.value = t.fa;
-    if (els.base) els.base.value = t.base;
-    if (els.lead) els.lead.value = t.lead;
-    if (els.voce) els.voce.value = t.voce;
-    if (els.width) els.width.value = t.width;
-    if (els.justify) els.justify.checked = !!t.justify;
-    if (els.theme) els.theme.value = t.theme;
-    applyTypo(t);
-    if (onChange) onChange(t);
-  };
-  for (const k of ["fa", "base", "lead", "voce", "width"]) {
-    if (!els[k]) continue;
-    els[k].addEventListener("input", () => {
-      const v = parseFloat(els[k].value);
-      if (k === "base" && t.base > 0) {
-        // The column width follows the Latin size through whatever ratio
-        // the two sliders currently hold (as when the width was in em).
-        // Hand-moving the width slider rebases that ratio — nothing is
-        // stored, so the next base change scales from where the width is
-        // NOW, never snapping back to where it "would have been".
-        const ratio = t.width / t.base;
-        t.width = Math.max(420, Math.min(1400, ratio * v));
-      }
-      t[k] = v;
-      saveTypo(id, t); refresh();
-    });
+})();
+window.ParsehStudioTypo = studioTypo;
+// a document's own pages remember their typography under its key as well
+studioTypo.use(PAGE === "doc" || PAGE === "edit" ? DOC_ID : null);
+
+/* THE THEME OF A STUDIO PAGE, ONE FUNCTION FOR EVERY WAY IT CHANGES (a0.5.0).
+   `parseh_theme` is the whole toolbox's one colour setting, and the studio's
+   pages paint it on <body> (sheet.css keys its three themes there), not on
+   <html> where the toolbox's own pages keep it.  Three things used to write
+   it -- the library's and the documents' ◐ (static/mode.js), the decks' ◐
+   (static/decks.js) and the sheet's own menu -- each repainting what it
+   thought it owned: the documents' ◐ set <html> and left <body> alone, so on
+   a phone it turned a glyph and nothing else, and no studio page loaded
+   lib/prefs.js, so what the computer knew of the theme never reached it.
+   Now there is this: whatever changes the theme -- ◐ on any bar, the gear's
+   Colours, another tab (`storage`), the computer bringing a newer value
+   (lib/prefs.js says `parseh:pref` for every key it wears), the system
+   turning dark while the page follows it -- ends in paintTheme(), which sets
+   <html data-theme> the way Parseh.theme.apply() does, dresses <body> and
+   every sheet, and gives every ◐ its glyph and its words.  The glyphs, the
+   order and the sentence are lib/parseh.js's. */
+const THEME_ORDER = ["light", "dark", "sepia"];
+const THEME_GLYPH = {light: "○", dark: "●", sepia: "◐"};
+function storedTheme() {
+  let t = null;
+  try { t = localStorage.getItem("parseh_theme"); } catch (e) { /* private mode */ }
+  return t === "auto" || THEME_ORDER.includes(t) ? t : "auto";
+}
+// the palette on the screen: `auto` is whichever of light and dark the system has
+function shownTheme() {
+  const t = storedTheme();
+  if (t !== "auto") return t;
+  try { return matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light"; }
+  catch (e) { return "light"; }
+}
+function paintTheme() {
+  const stored = storedTheme(), now = shownTheme();
+  if (stored === "auto") document.documentElement.removeAttribute("data-theme");
+  else document.documentElement.setAttribute("data-theme", stored);
+  studioTypo.refresh();                 // <body data-theme>, every sheet, the gear's rows
+  const next = THEME_ORDER[(THEME_ORDER.indexOf(now) + 1) % THEME_ORDER.length];
+  $$("[data-parseh-theme]").forEach(b => {
+    b.textContent = THEME_GLYPH[now];
+    b.title = `theme: ${now}${stored === "auto" ? " (following the system)" : ""} — click for ${next}`;
+  });
+}
+function cycleTheme() {
+  const next = THEME_ORDER[(THEME_ORDER.indexOf(shownTheme()) + 1) % THEME_ORDER.length];
+  try { localStorage.setItem("parseh_theme", next); } catch (e) { /* private mode */ }
+  paintTheme();
+}
+function bindStudioLook() {
+  paintTheme();
+  // delegated, so a ◐ a page draws later is wired the moment it exists.  THE GUIDE EMBEDS THIS SCRIPT for its exercises
+  // (data-page="guide") and its ◐ is its own (html-guide/assets/guide.js): a second handler on the same button turned
+  // every click into two steps of the cycle, so there it is left to the guide
+  document.addEventListener("click", e => {
+    if (PAGE === "guide") return;
+    if (e.target.closest && e.target.closest("[data-parseh-theme]")) cycleTheme();
+  });
+  addEventListener("storage", e => {
+    if (!e.key || e.key === "parseh_theme") paintTheme();
+    else if (e.key === "exlex-typo:global" || e.key === "exlex-typo:" + studioTypo.id()) studioTypo.refresh();
+  });
+  document.addEventListener("parseh:pref", e => {
+    if (e.detail && e.detail.key === "parseh_theme") paintTheme();
+  });
+  // a page brought back from the back-forward cache ran none of its script
+  addEventListener("pageshow", e => { if (e.persisted) paintTheme(); });
+  if (window.matchMedia) {
+    const mq = matchMedia("(prefers-color-scheme: dark)");
+    const flip = () => { if (storedTheme() === "auto") paintTheme(); };
+    if (mq.addEventListener) mq.addEventListener("change", flip);
+    else if (mq.addListener) mq.addListener(flip);
   }
-  if (els.justify) els.justify.addEventListener("change", () => {
-    t.justify = els.justify.checked; saveTypo(id, t); refresh();
-  });
-  if (els.theme) els.theme.addEventListener("change", () => {
-    t.theme = els.theme.value; t.themeFollows = false; saveTypo(id, t); refresh();
-  });
-  const reset = $("#btn-typo-reset");
-  if (reset) reset.addEventListener("click", () => {
-    Object.assign(t, TYPO_DEFAULTS);
-    t.fa = defaultScale(lang()); t.faScript = lang().script;
-    // AND THE THEME GOES BACK TO FOLLOWING ◐.  TYPO_DEFAULTS says "paper",
-    // which is the sheet's look when nothing is picked -- but writing it
-    // down is itself a choice, and the sheet then stayed light while every
-    // other page of the toolbox went dark.  Before anything is picked the
-    // theme is the shared one and is not written down at all (loadTypo,
-    // saveTypo); a reset must put the sheet back into exactly that state.
-    t.theme = sharedSheetTheme(); t.themeFollows = true;
-    saveTypo(id, t); refresh();
-    toast("Typography reset to PDF defaults; the theme follows ◐ again");
-  });
-  refresh();
-  return () => t;
 }
 
 function bindPersianCopy(container) {
@@ -2767,6 +2828,29 @@ let hideExerciseTransliterations = false;
 try { hideExerciseTransliterations = localStorage.getItem(TRANSLITERATION_VISIBILITY_KEY) === "1"; }
 catch (e) { /* private pages keep the choice until this page closes */ }
 
+/* THE TRANSLITERATIONS' SWITCH, TURNED IN ONE PLACE (a0.5.0).  A flashcard's
+   own button (.ex-translit-switch, in its head) and the gear's "Hide
+   transliterations" are the same choice, kept under the one key for every
+   page this browser opens, and each of them says it to the other
+   (`parseh:studio`).  The class on <body> is what hides the line, so it
+   works on a page that has no exercise yet and on every sheet drawn later;
+   the buttons on the cards are worded to match wherever there are any. */
+function showTransliterationChoice() {
+  document.body.classList.toggle("ex-hide-transliteration", hideExerciseTransliterations);
+  $$(".ex-translit-switch").forEach(button => {
+    button.textContent = hideExerciseTransliterations ? "Show transliterations" : "Hide transliterations";
+    button.setAttribute("aria-pressed", String(hideExerciseTransliterations));
+    button.title = "Apply to all exercise flashcards";
+  });
+}
+function setTransliterationsHidden(v) {
+  hideExerciseTransliterations = !!v;
+  try { localStorage.setItem(TRANSLITERATION_VISIBILITY_KEY, hideExerciseTransliterations ? "1" : "0"); }
+  catch (err) { /* page-local choice still works */ }
+  showTransliterationChoice();
+  document.dispatchEvent(new CustomEvent("parseh:studio", {detail: {what: "transliteration"}}));
+}
+
 function bindExercises(container, opts = {}) {
   // EVERY PIECE OF RENDERED HTML IN THIS TOOLBOX COMES PAST HERE -- the
   // document page, the editor's preview, the exercise form's stage, a deck
@@ -2786,24 +2870,13 @@ function bindExercises(container, opts = {}) {
   if (!exercises.length) return {judge: () => false, exercises: []};
   $$(".ex-flashcard[data-first]", container).forEach(drawFirstSide);
 
-  function showTransliterationChoice() {
-    document.body.classList.toggle("ex-hide-transliteration", hideExerciseTransliterations);
-    $$(".ex-translit-switch").forEach(button => {
-      button.textContent = hideExerciseTransliterations ? "Show transliterations" : "Hide transliterations";
-      button.setAttribute("aria-pressed", String(hideExerciseTransliterations));
-      button.title = "Apply to all exercise flashcards";
-    });
-  }
   showTransliterationChoice();
   listen(container, "click", e => {
     const button = e.target.closest(".ex-translit-switch");
     if (!button || !container.contains(button)) return;
     e.preventDefault();
     e.stopPropagation();
-    hideExerciseTransliterations = !hideExerciseTransliterations;
-    try { localStorage.setItem(TRANSLITERATION_VISIBILITY_KEY, hideExerciseTransliterations ? "1" : "0"); }
-    catch (err) { /* page-local choice still works */ }
-    showTransliterationChoice();
+    setTransliterationsHidden(!hideExerciseTransliterations);
   });
 
   const shuffled = a => {
@@ -3358,6 +3431,10 @@ function bindExercises(container, opts = {}) {
       $$(".ex-bank", ex).forEach(shuffleInto);
     });
     applyDrag();
+    // a sheet taken out of the page and not bound again has nothing to apply it to
+    listen(document, "parseh:studio", e => {
+      if (e.detail && e.detail.what === "drag" && container.isConnected) applyDrag();
+    });
     const correct = $(".ex-correct-all", container);
     if (correct) listen(correct, "click", () => {
       const scored = exercises.filter(ex => ex.dataset.scored === "1");
@@ -4058,9 +4135,9 @@ function initIndex() {
 const PHONE_MQ = "(max-width: 560px)";
 const pinnedPair = () => PAGE === "doc" && !!window.matchMedia
   && window.matchMedia(PHONE_MQ).matches && !!$(".topbar") && !!$("#typobar");
-// Until this moment the bars neither go nor come: a bar that grows (Aa opening
-// its controls) moves the text under it, the browser scrolls to keep the text
-// where it was, and that scroll is no reader's.
+// Until this moment the bars neither go nor come: a bar that goes or comes
+// (put away by hand) moves the text under it, the browser scrolls to keep the
+// text where it was, and that scroll is no reader's.
 let barsHeldUntil = 0;
 const holdBars = ms => { barsHeldUntil = performance.now() + ms; };
 function barsStand() {
@@ -4078,18 +4155,11 @@ function bindBarHide() {
     off = v;
     document.body.classList.toggle("barhidden", v);
     // a menu hung from the reading page's bars would stay over the text,
-    // catching taps; and the typography controls, left open, would bring the
-    // bars back over most of a small screen, which is what pinning them
-    // short was for
+    // catching taps (the gear's sheet hangs from nothing: it stands over the
+    // page on its own, and the bars going leaves it where it is)
     if (v && PAGE === "doc") {
       document.querySelectorAll(".topbar details[open], .toolbar details[open]")
         .forEach(d => { d.open = false; });
-      if (document.body.classList.contains("typo-open")) {
-        holdBars(400);
-        document.body.classList.remove("typo-open");
-        const t = $("#btn-typo");
-        if (t) t.setAttribute("aria-expanded", "false");
-      }
     }
   };
   const read = () => {
@@ -4264,7 +4334,10 @@ function initDoc() {
   // the chrome outside the sheet (build badges, modals) takes the
   // document's language too, so its tokens resolve there
   document.body.dataset.lang = lang().code;
-  let getTypo = bindTypoControls(DOC_ID);
+  // the typography is the shared state's (studioTypo), moved by the gear's
+  // rows; the PDF is built at its scale
+  const getTypo = studioTypo.get;
+  studioTypo.refresh();
   bindPersianCopy(sheet);
   bindFootnoteClouds(sheet);
   bindWordCloud(sheet, {applyTranslit: docMarkApplier(DOC_ID, "translit"),
@@ -4282,7 +4355,6 @@ function initDoc() {
   armClipReplay(sheet);
   bindExercises(sheet);
   syncStickyOffset();
-  bindTypoToggle();
   bindBarsToggle();
   bindGlosses();
   bindToTop();
@@ -5052,9 +5124,9 @@ function initPrompt() {
 
 /* ---------------- boot ---------------- */
 
-// the library and the prompt page have no sheet, but they still take the
-// theme (the toolbox's shared one until a theme is picked in a reading view)
-if (PAGE === "index" || PAGE === "prompt") applyTypo(loadTypo(null));
+// every page of the studio takes the toolbox's theme and follows it, the
+// library and the prompt page too, which have no sheet to dress
+bindStudioLook();
 
 // every page of the studio, whichever it is: the bar behaves on a phone
 bindBarHide();

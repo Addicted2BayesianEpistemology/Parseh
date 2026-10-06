@@ -634,17 +634,22 @@ isolated `dir="rtl"` span, the web twin of `\pe`/`\pel`; a Japanese run is
 an LTR span in the CJK font, and a vertical block is a `writing-mode:
 vertical-rl` box.
 
-**Interactive typography**, persisted per document:
+**Interactive typography**, persisted per document, in the page's **⚙ page** panel
+(`static/gear.js`, on the toolbox's `lib/pagesettings.js`; **Aa** in the toolbar opens it
+at its **Text** group):
 
-* **the target size** — the slider is labelled with the language's name
-  ("Persian", "Japanese"…) and scales the target text *independently* of
+* **the target size** — the slider is named for the language (**Persian text size**,
+  **Japanese text size**…) and scales the target text *independently* of
   the Latin (the same knob as fontspec's `Scale`; the PDF build uses the
   current slider value as `--scale`);
-* Latin base size, leading, lemma-header size;
-* **column width** (420–1400 px) — by default it follows the Latin size
+* **Latin text size**, **Line spacing**, **Headword size** (the lemma header);
+* **Text width** (420–1400 px) — by default it follows the Latin size
   proportionally, so the two sliders move together; dragging the width
   yourself never moves the Latin slider and simply rebases the ratio;
-* justify + hyphenation toggle; Paper/Sepia/Dark themes; print view.
+* **Justify the text** (hyphenation); **Put the text back to normal**; print view in the
+  toolbar. The sheet has no theme menu of its own: it follows the toolbox's colours (◐, or
+  **Colours** in the panel); the exercises' two switches, **Hide transliterations** and
+  **Drag to answer**, are in the panel's **Exercises** group.
 
 The sheet is always centred. **☰ Contents** opens the table of contents
 as a drawer floating over the page, closing on Esc, on the backdrop, or
@@ -662,14 +667,14 @@ a phone's toolbar with Contents and Glosses, closes on Esc or on the
 backdrop, and on a note beside a book or a video it lists the notes of that
 book or video.
 
-**⌃ bars**, at the end of the toolbar, takes all three bars away — the
-topbar, the tags and the typography — and leaves one faint button in the
+**⌃ hide bars**, in the toolbar (and **Hide the bars** in the panel's **Page** group),
+takes all three bars away — the
+topbar, the tags and the toolbar — and leaves one faint **⌄ show bars** in the
 corner to bring them back, so a page that is set the way you want it gives
 the whole window to its text. The choice is remembered for every document,
 since it is a way of reading rather than a property of a page; a phone's own
 hiding (the bars go as the page moves down and come back on the smallest
-move up) is untouched, and there the button sits under **Aa**, the toolbar's
-buttons being short on purpose.
+move up) is untouched.
 
 ### Glosses overlay
 

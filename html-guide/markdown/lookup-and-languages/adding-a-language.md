@@ -51,17 +51,17 @@ The fields of the row that carry a decision:
 | `script`, `chars` | the kind of script, and the character ranges its text is recognised by (a regular-expression class, compiled by both Python and the browser). **`null`** means it cannot be told from English, and every run is marked by hand in the studio |
 | `word_sep` | what separates words; the empty string for a language written without spaces, where a chunk counts as one word |
 | `digits` | the ten figures its labels are written in |
-| `strip` | the marks the bare pass takes off (the harakat). A language with no marks to strip, no reading and no word line has no bare pass, since it would only reprint pass 1; Japanese and Chinese have none to strip and still get one, which takes the readings away |
-| `reading`, `reading_label` | a second reading line beside the transliteration (Japanese's **kana**): a field on the cards, a line in every gloss, ruby in pass 1, a rule the checkers enforce |
-| `words` | chunks carry a word line, each word with its reading (Japanese, Chinese) — and a reading-alone pass follows pass 1 |
-| `vertical` | it can be set in columns: a vertical last pass, and the studio's `vertical` |
+| `strip` | the marks the plain level takes off (the harakat) — and the same marks **Diacritics** puts away from the first two levels and a video's lines. A language with no marks to strip, no reading and no word line has no plain level, since it would only reprint the first; Japanese and Chinese have none to strip and still get one, which takes the readings away |
+| `reading`, `reading_label` | a second reading line beside the transliteration (Japanese's **kana**): a field on the cards, a line in every gloss, ruby in the first level, a rule the checkers enforce |
+| `words` | chunks carry a word line, each word with its reading (Japanese, Chinese) — and a reading-alone level follows the first |
+| `vertical` | it can be set in columns: a vertical last level, and the studio's `vertical` |
 | `require_tr`, `translit_label` | whether every chunk needs a transliteration, and what the line is called |
 | `ipa` | what the prompts' IPA setting makes of the language: left out, a person may ask for IPA in place of the usual scheme; `usual` says the usual scheme already is IPA (English); `none` offers no setting (Chinese, whose words are written in pinyin) |
-| `vocal_label`, `bare_label` | what pass 1 and the bare pass are called |
+| `vocal_label`, `bare_label` | the one-line titles of the first level and the plain level — what the panel prints under their names. The names the buttons wear are worked out from them: **Sentence**, **With vowels**, the reading's own (**Pinyin**), and **Plain** |
 | `vb_forms`, `vb_labels` | what a verb entry's three forms are, and the two labels it prints ([Verb entries](language-by-language.md#verb-entries)) |
 | `vb_video_bare` | a video's verb entries written without the marks (Arabic's are unvowelled); set by hand, there is no flag |
 | `fonts`, `tex` | the faces on screen (the CSS stacks, and any `.woff2` that travels with Parseh) and on paper (babel's and fontspec's names, the faces to try in order, the hyphenation) |
-| `passes` | the reading edition's passes, with their titles — worked out from the fields above |
+| `passes` | the reading edition's levels, each with its name and its title — worked out from the fields above |
 | `anki` | the two note-type ids and names, and the first field's name. **The ids are what Anki matches note types by, and must be this language's alone, forever** |
 | `duration_units`, `chapter_words` | the words a transcript uses for seconds, minutes, hours and chapters |
 
@@ -78,7 +78,7 @@ python3 lib/newlang.py ko --name Korean --native 한국어 --script other \
 ```
 
 It asks for nothing it can work out — the folder, the tag, babel's name,
-the passes and their titles, the labels, and a free pair of Anki ids,
+the levels, their names and their titles, the labels, and a free pair of Anki ids,
 checked against every id in both files and every retired one — and works
 out nothing you ought to decide. The flags that carry a decision:
 
@@ -98,9 +98,9 @@ out nothing you ought to decide. The flags that carry a decision:
 | `--font`, `--font-fallback` | the face on paper and on screen, and faces to try when it is missing |
 | `--css-font` | the whole CSS stack, when the one built from `--font` is not right |
 | `--web-font` | a face bundled in `lib/fonts/`, by its `.woff2` file name (repeatable) |
-| `--alt-font`, `--alt-key` | a second face (Persian's nastaliq): the title, the chapter numbers and a pass of its own; the key is what a studio block calls it, `font=<key>` |
+| `--alt-font`, `--alt-key` | a second face (Persian's nastaliq): the title, the chapter numbers and a level of its own; the key is what a studio block calls it, `font=<key>` |
 | `--alt-line-height` | the leading the second face needs on screen (Persian's nastaliq asks for 2.6) |
-| `--translit-label`, `--vocal-label`, `--bare-label` | what the lines and passes are called |
+| `--translit-label`, `--vocal-label`, `--bare-label` | what the lines are called, and the one-line titles of the first and the plain level |
 | `--vb-forms`, `--vb-labels` | the verb entry's three forms and two labels, each comma-separated |
 | `--hyphen`, `--import`, `--babel`, `--tex-language` | LaTeX's names, when the defaults are wrong |
 | `--anki-field`, `--duration-units`, `--chapter-words` | the rest of the row |
@@ -127,9 +127,10 @@ warnings (none of them stopped anything):
 
   config/languages.json entry added -- a language of this machine's, which an update leaves where it is:
       folder korean/   tag korean   dir ltr   script other   digits Latin
-      passes: 1 (the sentence), 2 (chunks and glosses)
+      passes: Sentence (the sentence, to read on its own); Chunks (the sentence cut into chunks, each with its gloss beside it)
+              (each button wears its name; a person renames a level on their own pages, and this is the default)
       fonts:  main Noto Serif KR, alt none, bundled none
-      anki:   1724587311241 / 1724587311242 (slot 2411124), field Korean
+      anki:   1724645326311 / 1724645326312 (slot 8212631), field Korean
   lib/lang/ko.tex      written
   docs/lang/ko.md      written
   books/korean/        made, with .gitkeep
@@ -143,7 +144,7 @@ The command fills in the shape and not the prose, and it ends by listing
 what is yours:
 
 1. **`\FrankHowTo` in `lib/lang/<code>.tex`** — the “How to read this” page
-   at the front of every printed book: what each pass is for, and what the
+   at the front of every printed book: what each level is for, and what the
    marks of the transliteration mean. It is written with a placeholder, so
    a book builds meanwhile; `lib/lang/fa.tex` is the voice to follow. For a
    language with a reading, words or a vertical pass, the file also has
@@ -299,7 +300,7 @@ python3 lib/newlang.py sv --name Swedish --native svenska --script latin \
     --iso3 swe --hyphen swedish
 ```
 
-Two passes, *the sentence* and *chunks and glosses*; an optional
+Two levels, **Sentence** and **Chunks**; an optional
 *pronunciation* line; no font, no ranges, no marks to strip. What is left is
 the prose: `\FrankHowTo` and the seven sections.
 

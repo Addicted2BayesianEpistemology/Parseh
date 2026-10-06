@@ -31,7 +31,7 @@ work:
   not saved yet) is the Markdown on the left and the typeset page on the
   right, redrawn as you type.
 - **The document page** (`/studio/doc/<id>`) is the document as a reader
-  sees it, with its typography controls, its contents, its glosses as a
+  sees it, with its ⚙ panel of typography and the rest, its contents, its glosses as a
   table and as flashcards, the documents that link to it, its exercises,
   **Build PDF**, and **Download ▾**, which also makes it
   [a page for a website](web-page.md).

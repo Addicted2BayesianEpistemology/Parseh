@@ -119,8 +119,8 @@ the oldest.
 ### Definitions, translated
 
 For an English book or video, whose dictionary gives definitions in English,
-a model from English into your gloss language adds the **in italian** (or
-**in persian**, …) switch beside **definitions**: each definition put into
+a model from English into your gloss language adds the **Translate the definitions into Italian** (or
+**…into Persian**, …) switch under **Show the dictionary's definitions**: each definition put into
 that language underneath it, as a machine's reading. See
 [Dictionaries](dictionaries.md#english-explained-in-english).
 

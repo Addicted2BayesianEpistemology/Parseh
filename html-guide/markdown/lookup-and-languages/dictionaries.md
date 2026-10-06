@@ -39,11 +39,13 @@ then deletes the file.
 
 ## The switch
 
-![A book reader's header: the glosses switch, hover, the dictionary switch turned on, and the reading help link](shots/reader-switch.png)
+![A book reader's header: the glosses switch, hover, and the dictionary switch turned on](shots/reader-switch.png)
 
 **dictionary** sits in the header of every book reader and every video
-player — after **gloss** and **hover** in a book, after **follow** and
-**hover ⏸** in the player. Three rules govern it:
+player — after **gloss** and **hover** in a book, after **keep in view** and
+**✱ notes** in the player. The rest of the dictionary's switches, and the way to get one, are in the
+⚙ panel's **Looking a word up** ([The ⚙ settings of a page](../getting-started/page-settings.md)),
+where **Look words up in a dictionary** is this very switch. Three rules govern it:
 
 - **It is there only when something is behind it.** A reader asks the
   server once, when it opens, whether this language has a dictionary or a
@@ -66,11 +68,11 @@ player — after **gloss** and **hover** in a book, after **follow** and
 **The panel is drawn only for a chunk nobody has written a vocabulary line
 for**, so a finished edition looks exactly as it did. With the switch on:
 
-- **click such a chunk** in the chunks-and-glosses pass, whatever mode the
+- **click such a chunk** in the chunks level, whatever mode the
   reader is in, and its cloud opens on it (without the switch, the same
   click plays the subparagraph, as it always did; a chunk that has a
   vocabulary line still does);
-- or, in **hover** mode, point at the chunk in pass 1, and its cloud opens
+- or, in **hover** mode, point at the chunk in the first level, and its cloud opens
   as always.
 
 Under what is written, the cloud then holds a tinted panel:
@@ -175,22 +177,22 @@ Every dictionary here is the English Wiktionary's, and it explains the
 words of every language in English. For Persian or Italian that is a
 translation. For English itself it is a **definition**, written in the
 language you are learning. So a reader or player of **English** has one more
-switch, **definitions**, beside **dictionary** (greyed while **dictionary**
-is off), and it is **off** until you turn it on:
+switch in the ⚙ panel's **Looking a word up**, **Show the dictionary's definitions**, under **Look words up in a
+dictionary** (greyed while the dictionary is off), and it is **off** until you turn it on:
 
 - **Off.** An entry still gives the headword, how it is said, its part of
   speech, how the word was reached and a verb's parts, and the panel says
-  once where the definitions are: *the dictionary explains these words in
-  English: “definitions”, in the header, shows what it says*.
+  once that the dictionary explains these words in English, and where the
+  definitions are.
 - **On.** Each entry gives Wiktionary's definitions with the labels
   Wiktionary puts on them — *(intransitive)*, *(countable)*, *(slang)* — the
   first three at once, and the rest behind a **2 more definitions** button
   (it counts them).
 - **A third switch** appears where a translation model reads English into
   the language the glosses are written in: it is named after that language
-  — **in italian**, **in persian** — and puts each definition into it,
-  underneath, as a machine's reading. It is greyed until **definitions**
-  is on.
+  — **Translate the definitions into Italian**, **…into Persian** — and puts each definition into it,
+  underneath, as a machine's reading. It is greyed until the definitions
+  are on.
 
 All three are remembered like the dictionary's own.
 

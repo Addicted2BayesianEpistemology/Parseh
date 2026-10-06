@@ -71,7 +71,8 @@ A card with a `transliteration` shows **Hide transliterations** in its
 head. Pressing it hides the transliteration fields of **every** exercise
 flashcard in view — in documents, in a deck's list, on the study page —
 and the button becomes **Show transliterations**; the choice is remembered
-across pages in that browser. Readings and the other fields stay.
+across pages in that browser. The same switch is **Hide transliterations** in the ⚙ panel's
+**Exercises** group. Readings and the other fields stay.
 
 `front:` and `back:` make a card of any two texts, while keeping the
 card's pictures and recordings:
@@ -447,7 +448,7 @@ sight. The editor's preview shows both sides at once.
 
 **⤢ Enlarge**, in the head of every card, opens **the same card, only
 bigger**, in a window over the page: laid out exactly as on the page — its
-width, its text size, the page's typography and the exercise's direction,
+width, its text size, the page's typography (the ⚙ panel's **Text** group) and the exercise's direction,
 every line breaking where it breaks there — and then magnified as much as
 the window holds, at least half as large again where the screen has room;
 a card taller than the window is drawn that large and scrolls.

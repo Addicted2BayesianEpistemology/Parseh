@@ -62,7 +62,8 @@ drag only sometimes.
 **Where the pointer is a finger, dragging an ordering exercise's blocks
 starts turned off**, and the arrows alone move them. That is a guess about
 the machine, so each such exercise has a switch in its head — **✥ dragging
-on** / **✥ dragging off** — which says which it is and changes it, for every
+on** / **✥ dragging off** — which says which it is and changes it — the same switch as **Drag to answer** in the
+⚙ panel's **Exercises** group — for every
 ordering exercise on every page that browser opens afterwards (in a private
 window, for as long as the page is open). The switch governs dragging and
 tap-to-place; the arrows are always there. A fill-in exercise has no
