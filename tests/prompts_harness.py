@@ -38,22 +38,30 @@ ROOT = Path(__file__).resolve().parents[1]
 os.chdir(ROOT)
 for p in ("markdown/exlex", "markdown/app", "lib", "youtube/lib", "."):
     sys.path.insert(0, str(ROOT / p))
+import languages                                               # noqa: E402
+import latexthemes                                             # noqa: E402
 import network                                                 # noqa: E402
+import newlang                                                 # noqa: E402
 import offline                                                 # noqa: E402
 import prefs                                                   # noqa: E402
 import promptkit                                               # noqa: E402
 import prompts                                                 # noqa: E402
 import serve                                                   # noqa: E402
+import speechconfig                                            # noqa: E402
 import store                                                   # noqa: E402
 
 tmp = Path(tempfile.mkdtemp(prefix="parseh-prompts-test-"))
 network.STORE = str(tmp / "config" / "network.json")
 prompts.STORE = str(tmp / "config" / "prompts.json")
-# and the owner's preferences (a page of the studio saves its theme through lib/prefs.py since a0.5.0) and the two
-# memories of the phone-keeping door: nothing here may reach config/
+# and every other store of config/ (tests/test_harness_stores.py asks): the owner's preferences (a page of the
+# studio saves its theme through lib/prefs.py since a0.5.0), the two memories of the phone-keeping door, the LaTeX
+# themes, the languages added on this machine (lib/newlang.py keeps a copy of the path) and the speech settings
 prefs.STORE = str(tmp / "config" / "prefs.json")
 offline.DIGESTS = str(tmp / "config" / "digests.json")
 offline.WHERES = str(tmp / "config" / "wheres.json")
+latexthemes.STORE = str(tmp / "config" / "latex.json")
+languages.PERSONAL = newlang.PERSONAL = str(tmp / "config" / "languages.json")
+speechconfig.CONFIG = tmp / "config" / "speech.json"
 store.LIB = tmp / "library"
 serve.Handler.log_request = lambda self, *a, **k: None
 serve.Handler.log_message = lambda self, *a: None

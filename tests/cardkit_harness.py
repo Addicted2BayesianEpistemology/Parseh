@@ -163,6 +163,11 @@ def serve_it(tmp, port, no_ffmpeg, tray):
     import offline
     offline.DIGESTS = str(tmp / "config" / "digests.json")
     offline.WHERES = str(tmp / "config" / "wheres.json")
+    # and the languages added on this machine (lib/newlang.py keeps a copy of
+    # lib/languages.py's path) and the speech settings
+    import languages, newlang, speechconfig
+    languages.PERSONAL = newlang.PERSONAL = str(tmp / "config" / "languages.json")
+    speechconfig.CONFIG = tmp / "config" / "speech.json"
     serve.ROOT = str(tmp / "root")
     serve._AtRoot.directory = str(tmp / "root")
     ytpages.VIDEOS = str(tmp / "root" / "youtube" / "videos")

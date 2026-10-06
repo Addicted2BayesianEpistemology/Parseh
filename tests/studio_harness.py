@@ -90,6 +90,9 @@ if FORCE_LATEX_COMPILER_STATES:
 import offline  # the phone-keeping memories (lib/offline.py) too
 offline.DIGESTS = str(tmp / "config" / "digests.json")
 offline.WHERES = str(tmp / "config" / "wheres.json")
+import languages, newlang, speechconfig    # the languages added on this machine (newlang keeps a copy of the
+languages.PERSONAL = newlang.PERSONAL = str(tmp / "config" / "languages.json")   # path) and the speech settings
+speechconfig.CONFIG = tmp / "config" / "speech.json"
 store.LIB.mkdir()
 decks.set_dir(tmp / "exercises")
 tray = tmp / "clips"

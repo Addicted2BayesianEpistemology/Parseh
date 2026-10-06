@@ -62,6 +62,9 @@ offline.DIGESTS = str(tmp / "config" / "digests.json")
 offline.WHERES = str(tmp / "config" / "wheres.json")
 import prefs    # and the owner's preferences (lib/prefs.py): a page a suite
 prefs.STORE = str(tmp / "config" / "prefs.json")   # drives may save one
+import languages, newlang, speechconfig    # the languages added on this machine (newlang keeps a copy of the
+languages.PERSONAL = newlang.PERSONAL = str(tmp / "config" / "languages.json")   # path) and the speech settings
+speechconfig.CONFIG = tmp / "config" / "speech.json"
 store.LIB.mkdir()
 decks.set_dir(tmp / "exercises")
 # the clip tray too: an exercise naming a clip looks there, never in clips/

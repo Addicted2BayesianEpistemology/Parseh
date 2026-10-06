@@ -46,10 +46,11 @@ CONFIG = ROOT / "config"
 # what the report says after the list, for whoever reads a red run
 ADVICE = ("config/ is the owner's own settings folder, and a test must leave "
           "it as it found it: point the store at the test's temporary tree "
-          "first, as tests/decks_harness.py does for prefs.STORE, "
-          "network.STORE, prompts.STORE, offline.DIGESTS and offline.WHERES.  (A Parseh "
-          "started from this checkout and used while the tests ran writes "
-          "there too, and would be reported in the same words.)")
+          "first, as tests/decks_harness.py does for every store "
+          "(tests/test_harness_stores.py lists them, and asks it of every "
+          "harness).  (A Parseh started from this checkout and used while "
+          "the tests ran writes there too, and would be reported in the "
+          "same words.)")
 
 _GONE = object()
 

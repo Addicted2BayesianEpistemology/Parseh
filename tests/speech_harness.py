@@ -51,19 +51,29 @@ for p in ("markdown/exlex", "markdown/app", "lib", "youtube/lib", "."):
 import network                                                 # noqa: E402
 import download                                                # noqa: E402
 import getstt                                                  # noqa: E402
+import languages                                               # noqa: E402
+import latexthemes                                             # noqa: E402
+import newlang                                                 # noqa: E402
 import offline                                                 # noqa: E402
 import prefs                                                   # noqa: E402
+import prompts                                                 # noqa: E402
 import serve                                                   # noqa: E402
+import speechconfig                                            # noqa: E402
 
 AS_PHONE = "--as-phone" in sys.argv[1:]
 REAL = sys.argv[sys.argv.index("--real") + 1] if "--real" in sys.argv[1:] else ""
 tmp = Path(tempfile.mkdtemp(prefix="parseh-speech-door-test-"))
 network.STORE = str(tmp / "config" / "network.json")
-# and the owner's preferences (a page of Settings saves its theme through lib/prefs.py) and the two memories of the
-# phone-keeping door: nothing here may reach config/
+# and every other store of config/ (tests/test_harness_stores.py asks): the owner's preferences (a page of Settings
+# saves its theme through lib/prefs.py), the two memories of the phone-keeping door, the prompts he wrote, the LaTeX
+# themes, the languages added on this machine (lib/newlang.py keeps a copy of the path) and the speech settings
 prefs.STORE = str(tmp / "config" / "prefs.json")
 offline.DIGESTS = str(tmp / "config" / "digests.json")
 offline.WHERES = str(tmp / "config" / "wheres.json")
+prompts.STORE = str(tmp / "config" / "prompts.json")
+latexthemes.STORE = str(tmp / "config" / "latex.json")
+languages.PERSONAL = newlang.PERSONAL = str(tmp / "config" / "languages.json")
+speechconfig.CONFIG = tmp / "config" / "speech.json"
 STT = Path(REAL) if REAL else tmp / "stt"
 getstt.STT_DIR = str(STT)
 if not REAL:

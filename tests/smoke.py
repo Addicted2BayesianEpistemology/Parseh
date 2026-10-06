@@ -5922,6 +5922,10 @@ import texmf_fixture  # noqa: E402  what the themes add to the base, as if Parse
 texmf_fixture.pretend_got(texpackages, latexthemes)
 offline.DIGESTS = os.path.join(config, "digests.json")
 offline.WHERES = os.path.join(config, "wheres.json")
+# and the languages added on this machine (lib/newlang.py keeps a copy of the path) and the speech settings
+import languages, newlang, pathlib, speechconfig
+languages.PERSONAL = newlang.PERSONAL = os.path.join(config, "languages.json")
+speechconfig.CONFIG = pathlib.Path(config) / "speech.json"
 sys.argv = ["serve.py"] + sys.argv[2:]
 runpy.run_path("serve.py", run_name="__main__")
 """
