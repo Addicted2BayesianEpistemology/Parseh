@@ -93,6 +93,10 @@ SHARED = (
     # what a reader of a book an agent is making adds to itself (parseh.js loads it
     # into every reader; it asks one question and does nothing for any other book)
     "/lib/making.js",
+    # and the book reader's use of the gear: its groups and rows, the levels' names,
+    # Diacritics (parseh.js loads it into every reader beside the toolkit; a kept book
+    # without it has a ⚙ that opens on nothing)
+    "/lib/gear-reader.js",
     # keeping, and the chip that says the computer cannot be reached: without
     # it a kept page would open offline and say nothing about being offline
     "/lib/keep.js",

@@ -3464,7 +3464,7 @@ function nextStop(from, dir) {
 }
 /* ---------- listening, without following the text ------------------------
    Everything above plays a SUBPARAGRAPH: the playhead is the reading place,
-   it stops at that subparagraph's end, and `continuous` steps it on to the
+   it stops at that subparagraph's end, and "keep going" steps it on to the
    next one -- walking the text, which is what a reading edition is for.
    Sometimes the recording is what is wanted and the text is not: put it on
    and listen, from wherever in the file you like.
@@ -3532,19 +3532,19 @@ function showSeek() {
 /* ---------- listening, with the mark let back in -------------------------
    Listening on its own never touches the mark (hl/clearHL): that is the
    whole of what it promises above, and most of the time it is enough --
-   "not necessary, everything works without it".  "follow" is the one door
+   "not necessary, everything works without it".  "highlight" is the one door
    back in, for whoever wants to see where the recording has got to without
    giving up the hands-free play: it puts the mark on the subparagraph the
    PLAYHEAD is in, the way a video's captions follow the video (tick() /
    findSeg() in youtube/lib/player.js, read the same way here) -- not the
    way a book's own \stopAt does, which pauses at the end of one.  Following
    never sets stopAt and never touches `cur`: the reading place you left off
-   at is exactly where it was, and turning "follow" off, or listening off,
+   at is exactly where it was, and turning "highlight" off, or listening off,
    puts the mark back on it (restoreHL).
 
-   "scroll to it" is the second, and only ever means anything together with
+   "keep in view" is the second, and only ever means anything together with
    the first: on its own, with nothing being followed, there is nothing to
-   scroll to.  Off, the mark still moves under "follow" -- the page does
+   scroll to.  Off, the mark still moves under "highlight" -- the page does
    not, and the reader follows it by hand.  Both are grey until listening is
    on, and both start unpressed every time listening is turned on, the same
    "a habit of the moment" listening itself is. */
@@ -3649,7 +3649,12 @@ addEventListener('beforeunload', save);
 $('#play').onclick = togglePlay;
 $('#loop').onclick = e => { loop = !loop; e.target.classList.toggle('on', loop);
   $('#gapwrap').style.display = loop ? 'inline' : 'none'; };
-$('#cont').onclick = e => { cont = !cont; e.target.classList.toggle('on', cont); };
+/* KEEP GOING.  A reading habit and the person's, like the speed: remembered
+   under bk_cont ("1" or "0"; absent means on, which is how every book has always
+   played) and followed from one device to another (lib/prefs.js KEYS). */
+cont = localStorage.getItem('bk_cont') !== '0';
+$('#cont').onclick = e => { cont = !cont; e.target.classList.toggle('on', cont);
+  localStorage.setItem('bk_cont', cont ? '1' : '0'); };
 $('#cont').classList.toggle('on', cont);
 /* Stop at a change of chapter or of section.  A reading habit rather than a
    fact about one book, so it is kept under a plain key beside the gap and the
@@ -3681,7 +3686,7 @@ $('#listen').onclick = e => {
     stopAt = (!A.paused && cur >= 0 && SUBS[cur] && SUBS[cur][1] != null)
       ? SUBS[cur][1] : null;
   }
-  // "follow" and "scroll to it" mean nothing outside listening: grey, and
+  // "highlight" and "keep in view" mean nothing outside listening: grey, and
   // started fresh, every time listening is what has just changed
   listenFollow = false; listenScroll = false; listenAt = -1;
   $('#listenfollow').disabled = $('#listenscroll').disabled = !listening;
@@ -3756,9 +3761,12 @@ $$('[data-toggle]').forEach(b => { const cls = b.dataset.toggle;
 // every page: lib/parseh.js keeps it and wires the ◐ button
 
 /* ---------- text size and margins ------------------------------------------
-   The Aa button opens the toolbox's panel (Parseh.typo): four sliders that
-   set the --rd-* tokens the stylesheet is written against.  Remembered per
-   browser under bk_typo, like the speed.                                    */
+   Parseh.typo: four sliders that set the --rd-* tokens the stylesheet is
+   written against.  Remembered per browser under bk_typo.  The Aa button
+   opens the GEAR at its Text group (lib/gear-reader.js), which draws these
+   very sliders from the fields given here and writes through the same
+   typo(); the panel Parseh.typo draws itself is the page's own fallback,
+   for a reader that has no gear (opened off the disk).                      */
 // the first slider is the text itself, named after its language; a vertical
 // language gets one more, the column height of its tategaki pass (em)
 const TYPO_FIELDS = [
@@ -10228,12 +10236,17 @@ JS = JS.replace("__FOLD__", languages.FOLD_JS)
 
 
 def pass_buttons():
-    """The header's pass toggles, one per pass the language has; the title is
-    the registry's description of the pass and the face is its label.
+    """The header's level toggles, one per pass the language has; the face is
+    the level's NAME (the registry's `name`, which a person may change on their
+    own pages: lib/gear-reader.js wears theirs over it on the live page) and
+    the title is the registry's one-line description of what it shows.  NEVER A
+    DIGIT: a number meant one thing in Persian and another in Chinese, and
+    names a level far better (docs/languages.md, the levels' names).
 
     They come out as ONE GROUP -- a dashed box with a caption under it --
-    because numbers on their own name nothing: the caption says what the
-    row of them is, and each button's title says what that one hides.
+    because buttons on their own do not say what the row of them is: the
+    caption says it (levels), and each button's title says what that one
+    shows.
 
     WHAT EACH BUTTON HIDES IS TAKEN FROM `pass_class`, NOT FROM ITS POSITION.
     The passes are drawn with a class named for their KEY -- `alt` is always
@@ -10243,31 +10256,31 @@ def pass_buttons():
     language with an `alt` pass and no `bare` one, so its third button asked
     the page to hide `.p3`, which a Chinese reader does not have, and the
     vertical pass could not be turned off at all.  The reading pass of a
-    language whose chunks carry words is the same case again: its button is
-    labelled 2 and toggles `no5`.
+    language whose chunks carry words is the same case again: its toggle is
+    `no5` wherever its button stands.
     """
     btns = "\n".join(
         '      <button data-toggle="no%s" title="%s">%s</button>'
         % (pass_class(p).split()[0][1:], esc(p.get("title", "")),
-           esc(p.get("label", str(i + 1))))
-        for i, p in enumerate(LANG.passes))
+           esc(p.get("name") or p.get("key", "")))
+        for p in LANG.passes)
     return ('  <span class="pgrp" title="the ways this edition sets the same '
             'text, one button each">\n    <span class="pgrpb">\n%s\n'
-            '    </span>\n    <span class="pgrpc">which passes you see</span>'
+            '    </span>\n    <span class="pgrpc">levels</span>'
             '\n  </span>' % btns)
 
 
 def hover_title():
-    """The hover button's title, naming the passes the mode keeps -- the
-    text ones: pass 1, the reading alone, the bare text -- by the labels
-    their buttons wear, which are 1 and 3 in Persian and 1, 2 and 4 in
-    Japanese."""
-    labels = [p.get("label", "") for p in LANG.passes
-              if p.get("key") in ("vocal", "aloud", "bare")]
-    said = (" and ".join(labels) if len(labels) < 3
-            else ", ".join(labels[:-1]) + " and " + labels[-1])
-    return ("the text alone (pass%s %s), the glosses in a hover cloud over it (H)"
-            % ("es" if len(labels) > 1 else "", said))
+    """The hover button's title, naming the levels the mode keeps -- the text
+    ones: the sentence, the reading alone, the plain text -- by the names their
+    buttons wear (and lib/gear-reader.js says it again with the names a person
+    gave them)."""
+    names = [p.get("name") or p.get("key", "") for p in LANG.passes
+             if p.get("key") in ("vocal", "aloud", "bare")]
+    said = (" and ".join(names) if len(names) < 3
+            else ", ".join(names[:-1]) + " and " + names[-1])
+    return ("the text alone (the level%s %s), the glosses in a hover cloud over it (H)"
+            % ("s" if len(names) > 1 else "", said))
 
 
 def lang_tokens():
@@ -10391,7 +10404,7 @@ def chunk_editor(dir_attrs):
         <button type="button" class="dbtn" data-col="orange"><span class="hl-orange">&#9679;</span> orange</button>
         <button type="button" class="dbtn" data-col="green"><span class="hl-green">&#9679;</span> green</button>
       </div>
-      <div class="anote">Marks <b>pass 1 only</b>, here and in the PDF &mdash; the
+      <div class="anote">Marks <b>the first level only</b>, here and in the PDF &mdash; the
         attempt you make before any help arrives. It means nothing to any tool:
         it is your own mark on the text, and <b>none</b> takes it off again.</div>
     </div></div>
@@ -10649,7 +10662,7 @@ def page(body, times, subs, audio_rel, meta, tocpanel, src, narr=(), paras=(),
   <a class="home glyph" href="__HUB__" title="Parseh &mdash; the hub">&#x67E;</a>
   <a class="home" href="__LIBRARY__" title="all books">&#9636;</a>
   <button id="play" title="play / pause (space)" style="min-width:38px;font-size:15px">&#9654;</button>
-  <button id="cont" title="continue into the next subparagraph">continuous</button>
+  <button id="cont" title="keep playing into the next line instead of stopping at the end of each one">keep going</button>
   <button id="loop" title="repeat this subparagraph (R)">loop</button>
   <button id="stopbnd" title="when a new chapter or section begins, stop there and wait for play">stop at a change</button>
   <button id="listen" title="play the recording on its own, without following the text — it holds where the text is folded, ready to go on after it">listen</button>
@@ -10657,10 +10670,10 @@ def page(body, times, subs, audio_rel, meta, tocpanel, src, narr=(), paras=(),
     <input id="seek" type="range" min="0" max="1000" value="0" step="1"
            title="where the recording plays from: drag it anywhere, folded or not"
            style="width:150px;vertical-align:middle"></span>
-  <button id="listenfollow" disabled title="let the reading place follow the recording while it plays on its own, the way a video’s captions follow the video — it moves with the sound but no longer stops it at a subparagraph’s end. Not needed: everything above works the same without it">follow</button>
-  <button id="listenscroll" disabled title="and scroll to keep it in view. Off, the reading place still moves — follow it by scrolling yourself">scroll to it</button>
-  <span id="gapwrap" style="display:none;font-size:12px;color:var(--dim)">gap
-    <select id="gap" title="pause between repetitions">
+  <button id="listenfollow" disabled title="highlight the sentence being said while the recording plays on its own, the way a video’s captions follow the video — it moves with the sound but no longer stops it at a sentence’s end. Not needed: everything above works the same without it">highlight</button>
+  <button id="listenscroll" disabled title="and scroll to keep it in view. Off, the highlight still moves — follow it by scrolling yourself">keep in view</button>
+  <span id="gapwrap" style="display:none;font-size:12px;color:var(--dim)">between repeats
+    <select id="gap" title="pause between repeats">
       <option value="0">0s</option><option value="0.5">0.5s</option>
       <option value="1">1s</option><option value="1.5">1.5s</option>
       <option value="2">2s</option><option value="3">3s</option>
@@ -10704,14 +10717,14 @@ def page(body, times, subs, audio_rel, meta, tocpanel, src, narr=(), paras=(),
 %s
   <button id="stopsrv" title="stop the local server">stop server</button>
   <button id="bars" type="button" aria-expanded="true"
-          title="Put the bars away and give the whole window to the text">&#8963; bars</button>
+          title="Put the bars away and give the whole window to the text">&#8963; hide bars</button>
 </div><div class="hrow" id="scrub" hidden>
   <span class="snote">the narration</span>
   <audio id="audio" preload="metadata" controls%s></audio>
   <span class="snote">play it; in <b>edit times</b>, &#9673; stamps a subparagraph's start or end at the playhead</span>
 </div></header>
 <button id="barsback" type="button" class="bars-show" hidden
-        aria-expanded="false" title="Bring the bars back">&#8964; bars</button>
+        aria-expanded="false" title="Bring the bars back">&#8964; show bars</button>
 %s
 <div id="cloud" lang="en" dir="ltr" hidden></div>
 <button id="chpen" type="button" hidden title="write this chunk: its text, its gloss, its colour (E)">&#9998;</button>

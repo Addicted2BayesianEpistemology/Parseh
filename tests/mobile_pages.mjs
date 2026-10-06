@@ -25,16 +25,17 @@
 //      the browser mode says what it is and where the library is
 // reader -- a book's reader, in the mobile mode (lib/mobilereader.js):
 //   a) opened from the shelf; its header: the way out (hub, shelf), the
-//      contents, the text size and ⋯ -- and on a narrated book ↺ ▶ ↻, on a
+//      contents, the text size and the gear ⚙ -- and on a narrated book ↺ ▶ ↻, on a
 //      line of their own upright and on the one line sideways -- each 48px at
 //      the least, on the screen; nothing else of the header drawn, and none of
 //      the page's writing doors -- book info, the builds, the narration,
 //      folding, timings, stop, download, the dictionary setup, the pencil, a
 //      note's plus
-//   b) ⋯ opens the rest, a group to a line: the passes, the listening (only a
-//      narrated book), this page (the theme, the bars, the switch); the passes
-//      still hide their pass; the theme still turns; sideways, the header
-//      never taller than the screen
+//   b) the gear (a0.5.0; it replaced ⋯) opens the rest in a sheet, a group to a
+//      heading: the levels and the glosses, the listening (only a narrated
+//      book), looking a word up, the text, the colours, the interface; a level
+//      still hides its pass; the theme still turns; sideways, the sheet inside
+//      the screen
 //   c) the contents opens, without its naming; the gloss cloud opens on a tap
 //      in hover mode, with copy and without card or edit
 //   d) on a desktop in the mobile mode, alt-click on a word opens no card
@@ -43,10 +44,10 @@
 //   e) play plays, and the shelf's ▤ goes to the mobile shelf
 //   f) Browser, pressed, gives the reader back its browser header, the same
 //      controls as it had before Mobile was pressed
-//   g) ↻ and ↺ move the recording by the seconds the Listening group's field
-//      says, and the reading place with it; the field keeps its number for
+//   g) ↻ and ↺ move the recording by the seconds the gear's Skip distance
+//      says, and the reading place with it; the choice keeps its number for
 //      every book, and refuses nonsense; sideways, the header goes on the
-//      way down and comes back on the way up, and stays while ⋯ is open
+//      way down and comes back on the way up, and the gear's sheet is not modal
 // export -- a document's HTML page from a phone the worker controls, switched
 //   to Browser, with the computer slow to make it (TO-DO §2.28): Download ▾ →
 //   HTML page shows the bar and, 35 s on, gives the computer's own bytes as a
@@ -97,6 +98,7 @@
 //   MOBILE_PARTS=shelf,reader,touch,prefs,video,studio,export,decks,offline,checkout,background,app,update runs some of it
 //   (MOBILE_KEEP_WAY=worker: keeping the iPad's way only; see WAY below)
 import { chromium } from 'npm:playwright-core@1.52.0';
+import {gearOpen, gearClose, gearUp, gearSwitch, rowDrawn} from './gear_driver.mjs';
 
 const root = await Deno.realPath(new URL('..', import.meta.url));
 Deno.chdir(root);
@@ -476,7 +478,7 @@ const HEADER_SEL = 'header a[href], header button, header select, header input, 
 // layout places them with `order`
 const headerDrawn = page => page.evaluate(sel => [...document.querySelectorAll(sel)]
   .filter(e => e.getClientRects().length > 0)
-  .map(e => ({r: e.getBoundingClientRect(), name: e.id || (e.classList.contains('home')
+  .map(e => ({r: e.getBoundingClientRect(), name: e.id || (e.hasAttribute('data-parseh-gear') ? 'gear' : e.classList.contains('home')
     ? (e.classList.contains('glyph') ? 'hub' : 'shelf')
     : e.getAttribute('data-toggle') || e.getAttribute('data-parseh-mode') || e.className)}))
   .sort((a, b) => (Math.abs(a.r.top - b.r.top) > 6 ? a.r.top - b.r.top : a.r.left - b.r.left))
@@ -485,13 +487,14 @@ const WRITES = ['#bookinfo', '#buildbook', '#buildhtml', '#narr', '#fold', '#edi
                 '#stopsrv', 'header .dl', '#lookupset', '#build', '#pdfstale', '#chpen', '.gap .plus', '#editmsg'];
 
 // What the header holds: one line, whatever the book and whichever way the
-// phone is held.  The recording is not moved from here any more -- ↺, ⏯ and
+// phone is held -- the hub, the shelf, the contents, the text size and the gear (a0.5.0: it holds
+// everything the ⋯ menu did, in a sheet).  The recording is not moved from here any more -- ↺, ⏯ and
 // ↻ float at the foot, in the dock (lib/narrctl.js), where a thumb has them
 // without reaching up into a header that hides on the way down.
 function firstLines(code, tag) {
   // and the ? at its end, since a phone cannot rest on a button to read what
   // it does (lib/explain.js, §4.7)
-  return [['hub', 'shelf', 'toc', 'typo', 'm-rmore', 'px-ask']];
+  return [['hub', 'shelf', 'toc', 'typo', 'gear', 'px-ask']];
 }
 
 async function partReader() {
@@ -506,7 +509,7 @@ async function partReader() {
       await page.goto(B + '/m/books/');
       await Promise.all([page.waitForURL(B + MADE.readers[code]),
                          tap(page, `a.m-book[data-lang=${code}]`)]);
-      await page.waitForFunction(() => document.querySelector('.m-rmore'));
+      await page.waitForFunction(() => document.querySelector('[data-parseh-gear]'));
       await settle(page);
       await answerPlace(page);
       await reveal(page);
@@ -529,54 +532,64 @@ async function partReader() {
       else
         assert(await isDrawn(page, '.nc-dock .nc-play'), `${code}: the dock floats at the foot`);
 
-      // ---- b) ⋯
-      await tap(page, '.m-rmore');
+      // ---- b) the gear: everything ⋯ held, in a sheet
+      await gearOpen(page);
       await settle(page);
-      await shot(page, `reader-${code}-${tag}-more`);
-      const labs = await page.evaluate(() => [...document.querySelectorAll('.m-rlab')]
-        .filter(e => e.getClientRects().length).map(e => e.getAttribute('data-g')));
-      eq(labs, code === 'en' ? ['passes', 'listening', 'page'] : ['passes', 'page'],
-         `${code}: ⋯ opens the groups this book has`);
-      eq(await page.evaluate(() => document.querySelector('.m-rmore').getAttribute('aria-expanded')), 'true',
+      await sleep(350);                                  // the sheet rises in a sixth of a second: measured at rest
+      await shot(page, `reader-${code}-${tag}-gear`);
+      const groups = await page.evaluate(() => [...document.querySelectorAll('.pg-panel [data-pg-group]')]
+        .filter(g => !g.hidden).map(g => g.getAttribute('data-pg-group')).filter(g => g !== 'zoom'));
+      eq(groups, code === 'en' ? ['levels', 'listening', 'looking', 'text', 'colours', 'interface']
+                               : ['levels', 'looking', 'text', 'colours', 'interface'],
+         `${code}: the gear opens the groups this book has`);
+      eq(await page.evaluate(() => document.querySelector('[data-parseh-gear]').getAttribute('aria-expanded')), 'true',
          `${code}: and says it is open`);
-      // hover ⏸ (a0.4.1, lib/mobilereader.js): the narration waits while a gloss is open.  In the
-      // Listening group of the one narrated book -- and so nowhere in a book with no recording, in
-      // whatever language it is set (the header is an LTR island, right to left included), which
-      // is also what keeps a Listening line off that book's ⋯ (the labels just above)
-      eq(await page.evaluate(() => {
-        const b = document.getElementById('hoverpause');
-        return b && b.getClientRects().length > 0 ? [b.textContent, b.getBoundingClientRect().height >= 48] : null;
-      }), code === 'en' ? ['hover\u00a0⏸', true] : null,
-         `${code}: hover ⏸ ${code === 'en' ? 'is under ⋯, in Listening, a finger high' : 'is not drawn: no narration to wait'}`);
-      if (tag === 'landscape')
-        assert(await page.evaluate(() => document.querySelector('header').getBoundingClientRect().height <= innerHeight + 0.5),
-               `${code}: sideways, open, the header is never taller than the screen`);
-      allFit(await targets(page, 'header button, header select, header input'), `${code}: every control under ⋯ at least 48px`);
+      // hover ⏸ (a0.4.1, lib/mobilereader.js): the narration waits while a gloss is open.  A row of the one
+      // narrated book -- and so nowhere in a book with no recording, in whatever language it is set (the
+      // gear's chrome is an LTR island, right to left included), which is also what keeps the Listening
+      // group off that book's gear (the groups just above)
+      eq(await rowDrawn(page, 'hoverpause'), code === 'en',
+         `${code}: hover ⏸ ${code === 'en' ? 'is a row of the gear, "Pause while a gloss is open"' : 'is not offered: no narration to wait'}`);
+      if (code === 'en')
+        assert(await page.evaluate(() => document.querySelector('.pg-panel [data-pg-row=hoverpause]').getBoundingClientRect().height >= 48),
+               `${code}: and a finger high`);
+      // the sheet is inside the screen, whichever way the phone is held (half of it, and never less than 240px: a phone
+      // held sideways), with the text above it still there
+      const sheetBox = await page.evaluate(() => {
+        const r = document.querySelector('.pg-panel').getBoundingClientRect();
+        return {t: r.top, b: r.bottom, h: r.height, vh: innerHeight};
+      });
+      assert(sheetBox.t >= 0 && sheetBox.b <= sheetBox.vh + 0.5 && sheetBox.h <= Math.max(240, sheetBox.vh * 0.6) + 1,
+             `${code}: the sheet is inside the screen and about half of it: ${JSON.stringify(sheetBox)}`);
+      allFit(await targets(page, '.pg-panel button, .pg-panel select, .pg-panel .pg-lvcheck'),
+             `${code}: every control in the sheet at least 48px, on the screen, reached by a tap`);
       for (const w of WRITES) assert(!(await isDrawn(page, w)), `${code}: still no ${w}`);
-      eq(await page.evaluate(() => [...document.querySelectorAll('header [data-parseh-mode]')]
-        .filter(b => b.getClientRects().length).map(b => b.getAttribute('aria-pressed'))), ['false', 'true'],
-         `${code}: the switch is there, Mobile pressed`);
-      // a pass still hides its pass
+      await gearOpen(page, 'interface');
+      eq(await page.evaluate(() => [...document.querySelectorAll('.pg-panel [data-pg-row=mode] button')]
+        .map(b => b.getAttribute('aria-pressed'))), ['false', 'true'], `${code}: the switch is there, Mobile pressed`);
+      await gearOpen(page, 'levels');
+      // a level still hides its pass: its tick, in the gear, drives the page's own button
       const pass = await page.evaluate(() => {
         const b = document.querySelector('.pgrp [data-toggle]');
         return b && b.getAttribute('data-toggle');
       });
       const passCls = pass.replace('no', '.p');
-      assert(await isDrawn(page, 'main ' + passCls), `${code}: pass ${passCls} drawn`);
-      await tap(page, `.pgrp [data-toggle=${pass}]`);
-      assert(!(await isDrawn(page, 'main ' + passCls)), `${code}: its button hides it`);
-      await tap(page, `.pgrp [data-toggle=${pass}]`);
+      const tick = '.pg-panel [data-pg-row=levels] .pg-lv:first-child .pg-lvcheck';
+      assert(await isDrawn(page, 'main ' + passCls), `${code}: level ${passCls} drawn`);
+      await tap(page, tick);
+      assert(!(await isDrawn(page, 'main ' + passCls)), `${code}: its tick hides it`);
+      await tap(page, tick);
       assert(await isDrawn(page, 'main ' + passCls), `${code}: and brings it back`);
       if (code === 'en') {
         const t0 = await page.evaluate(() => Parseh.theme.resolved());
-        await tap(page, '#theme');
+        await gearOpen(page, 'colours');
+        await tap(page, `.pg-panel [data-pg-row=theme] .pg-chip:text-is("${t0 === 'dark' ? 'Light' : 'Dark'}")`);
         const t1 = await page.evaluate(() => Parseh.theme.resolved());
-        assert(t0 !== t1, `en: the theme turns (${t0} -> ${t1})`);
+        assert(t0 !== t1, `en: the theme turns, from the gear (${t0} -> ${t1})`);
         await page.evaluate(t => Parseh.theme.set(t), t0);
       }
-      await page.evaluate(() => document.querySelector('header').scrollTop = 0);
-      await tap(page, '.m-rmore');
-      eq(await headerDrawn(page), want, `${code}: ⋯ again: the first line alone`);
+      await gearClose(page);
+      eq(await headerDrawn(page), want, `${code}: the gear shut: the first line alone`);
 
       // ---- g) the recording, back and on
       if (code === 'en') await partSkip(page, tag);
@@ -594,9 +607,7 @@ async function partReader() {
              `${code}: without the naming of chapters and sections`);
       await tap(page, '#tocx');
       await reveal(page);
-      await tap(page, '.m-rmore');
-      await tap(page, '#hovermode');
-      await tap(page, '.m-rmore');
+      await gearSwitch(page, 'hover', true);
       await tap(page, 'main .p1 .w');
       await page.waitForFunction(() => !document.querySelector('#cloud').hidden);
       assert(await isDrawn(page, '#cloud .mkcopy'), `${code}: a tap opens the gloss cloud, with copy`);
@@ -629,7 +640,7 @@ async function partReader() {
       // ---- e) the shelf's ▤ goes to the mobile shelf
       if (code === 'zh') {
         await page.reload();
-        await page.waitForFunction(() => document.querySelector('.m-rmore'));
+        await page.waitForFunction(() => document.querySelector('[data-parseh-gear]'));
         await reveal(page);
         await Promise.all([page.waitForURL(B + '/m/books/'), tap(page, 'header a.home:not(.glyph)')]);
         assert(true, 'zh: ▤ goes to the mobile shelf');
@@ -649,11 +660,13 @@ async function partReader() {
   const before = await headerDrawn(page);
   assert(before.includes('bookinfo') && before.includes('buildbook') && before.includes('narr'),
          'the browser mode: the header as the reader builds it ' + JSON.stringify(before));
-  assert(!(await isDrawn(page, '.m-rmore, .m-rlab, .nc-dock, .m-rskip')), 'with nothing of the mobile layer drawn');
-  // ... but for hover ⏸, which both modes draw (a0.4.1), beside the reader's own hover
-  // (tests/phone_clouds.mjs, n, asks that it is the very next control)
-  assert(before.includes('hoverpause') && before.includes('hovermode'),
-         'and hover ⏸, drawn in the browser mode too ' + JSON.stringify(before));
+  assert(!(await isDrawn(page, '.nc-dock, .m-rskip')), 'with nothing of the mobile layer drawn');
+  // the gear stands at the end of the first row in this mode too, and what it took off the page -- hover ⏸ (a0.4.1),
+  // stop at a change, the definitions -- is in the DOM for its rows to press and is not drawn
+  // (tests/phone_clouds.mjs, n, asks that hover ⏸ is still the very next control after hover)
+  assert(before.includes('gear') && before.includes('hovermode') && !before.includes('hoverpause') &&
+         !before.includes('stopbnd') && !before.includes('lookupset'),
+         'and the gear, with hover ⏸ and the rest it holds out of sight ' + JSON.stringify(before));
   assert(await isDrawn(page, 'header .nc-skip[data-skip="-1"]') && await isDrawn(page, 'header .nc-chip'),
          'and the recording moved from the header instead: ↺ ↻ beside ▶, the speed as a chip (§4.15)');
   const word = 'main .p1 .wd';
@@ -680,7 +693,7 @@ async function partReader() {
   await other.locator('.parseh-bar:not(.m-bar) [data-parseh-mode=mobile]').click();
   await page.waitForFunction(() => document.documentElement.getAttribute('data-mode') === 'mobile');
   await other.close();
-  assert(await isDrawn(page, '.m-rmore'), 'a switch made in another tab: the reader follows, ⋯ there');
+  assert(await isDrawn(page, '[data-parseh-gear].pg-mobile'), 'a switch made in another tab: the reader follows, the gear in its phone dress');
   assert(!(await card()), 'mobile: alt-click on the same word opens nothing');
   assert(!(await edit()), 'mobile: E over the same chunk opens nothing');
   // ---- e) play, from the dock that the mobile mode floats at the foot
@@ -695,9 +708,10 @@ async function partReader() {
   await page.waitForFunction(() => document.querySelector('#audio').paused);
   // ---- f) back to the browser mode
   await reveal(page);
-  await page.locator('.m-rmore').click();
-  await page.locator('header [data-parseh-mode=browser]').click();
-  eq(await page.evaluate(() => document.documentElement.getAttribute('data-mode')), 'browser', 'Browser pressed in the reader');
+  await gearOpen(page, 'interface');
+  await page.locator('.pg-panel [data-pg-row=mode] button:text-is("Browser")').click();
+  await gearClose(page);
+  eq(await page.evaluate(() => document.documentElement.getAttribute('data-mode')), 'browser', 'Browser pressed in the gear of the reader');
   eq(await headerDrawn(page), before, 'the header is the browser\'s again, control for control');
   eq(await page.evaluate(() => document.body.hasAttribute('data-bars-held')), false,
      'and nothing holds its bars any more');
@@ -708,8 +722,10 @@ async function partReader() {
   for (const code of ['en', 'fa', 'ar', 'ja', 'hi', 'zh']) {
     await page.goto(B + MADE.readers[code]);
     await page.waitForFunction(() => document.getElementById('hoverpause'));
-    eq(await isDrawn(page, '#hoverpause'), code === 'en',
-       `browser mode, ${code}: hover ⏸ ${code === 'en' ? 'drawn' : 'not drawn, no narration'}`);
+    await gearOpen(page);
+    eq(await rowDrawn(page, 'hoverpause'), code === 'en',
+       `browser mode, ${code}: the gear ${code === 'en' ? 'offers hover ⏸' : 'does not offer hover ⏸: no narration'}`);
+    await gearClose(page);
   }
   await page.context().close();
 }
@@ -794,16 +810,15 @@ async function partSkip(page, tag) {
   await page.click('.nc-pop button:text-is("5s")');
   eq([await page.evaluate(k => localStorage.getItem(k), K), (await state()).labels],
      ['5', ['↺ 5|back 5 seconds', '5 ↻|on 5 seconds']], 'en: 5s chosen: kept, and said on both');
-  // the same row under ⋯, since a hold cannot be seen
+  // the same choice in the gear's "Skip distance", since a hold cannot be seen (the phone's own row of seconds
+  // is the gear's now: still in the header's DOM, not drawn)
   await reveal(page);
-  await tap(page, '.m-rmore');
+  await gearOpen(page, 'listening');
   eq(await page.evaluate(() => {
-    const r = document.querySelector('.m-rskip');
-    return [r.getClientRects().length > 0, [...r.querySelectorAll('button')].map(x => x.textContent),
-            (r.querySelector('button.on') || {}).textContent];
-  }), [true, ['1s', '2s', '5s', '10s', '15s', '30s', '60s'], '5s'], 'en: ⋯ shows the same row, with 5s marked');
-  await page.evaluate(() => document.querySelector('header').scrollTop = 0);
-  await tap(page, '.m-rmore');
+    const s = document.querySelector('.pg-panel [data-pg-row=skip] select');
+    return [s.getClientRects().length > 0, [...s.options].map(o => o.textContent), s.options[s.selectedIndex].textContent];
+  }), [true, ['1 s', '2 s', '5 s', '10 s', '15 s', '30 s', '60 s'], '5 s'], 'en: the gear shows the same choice, with 5 s marked');
+  await gearClose(page);
   // the move itself: the recording, and the reading place with it
   await page.waitForFunction(() => document.getElementById('audio').readyState >= 1);
   await page.evaluate(() => { const a = document.getElementById('audio'); a.pause(); a.currentTime = 0; });
@@ -859,7 +874,7 @@ async function partSkip(page, tag) {
      'en: the dock fades when nothing is touched, and is whole again at a touch');
   if (tag === 'landscape') {
     // sideways: the header goes on the way down, comes back on the way up,
-    // and stays while ⋯ is open -- and the dock is there throughout
+    // and the gear's sheet is not modal -- and the dock is there throughout
     const hidden = () => page.evaluate(() => document.body.classList.contains('barhidden'));
     await page.evaluate(() => scrollTo(0, 0));
     await sleep(300);
@@ -873,11 +888,11 @@ async function partSkip(page, tag) {
     await sleep(300);
     assert(near((await rect(page, 'header')).t, 0), 'en, sideways: a move up brings it back');
     await reveal(page);
-    await tap(page, '.m-rmore');
+    await gearOpen(page);
     await page.evaluate(() => scrollBy(0, 200));
     await sleep(400);
-    assert(!(await hidden()), 'en, sideways: with ⋯ open the header stays');
-    await tap(page, '.m-rmore');
+    assert(await gearUp(page), 'en, sideways: the gear\'s sheet is not modal: the page above it scrolls and the sheet stays');
+    await gearClose(page);
     await page.evaluate(() => scrollTo(0, 0));
     await sleep(300);
   }
@@ -893,7 +908,7 @@ async function partSkip(page, tag) {
                                                      bk_rate: {v: '1', at: Date.now() / 1000}}})})
     .then(r => r.body?.cancel());
   await page.reload();
-  await page.waitForFunction(() => document.querySelector('.m-rmore'));
+  await page.waitForFunction(() => document.querySelector('[data-parseh-gear]'));
   await reveal(page);
 }
 
@@ -2505,13 +2520,13 @@ async function partOffline() {
 
   // ---- b) Keep on this phone, with the recording picked (§19.1, §19.2)
   await reveal(page);
-  await tap(page, '.m-rmore');
+  await gearOpen(page, 'interface');
   await page.waitForSelector('.kp-keep');
   // TWO BUTTONS SHARE THE LINE NOW (the owner's 4, 2026-09-23), so `.kp-btn`
   // is the WRAPPER and `.kp-keep` is the button it holds: reading the
   // wrapper's text would read both of them at once, and tapping the wrapper
   // would tap neither.
-  eq(await page.textContent('.kp-keep'), 'Keep on this phone', 'the button under ⋯ says what it does');
+  eq(await page.textContent('.kp-keep'), 'Keep on this phone', 'the button in the gear\'s last group says what it does');
   assert(!(await isDrawn(page, '.kp-drop')),
          'and with nothing kept there is nothing to remove: the first button has the line');
   await tap(page, '.kp-keep');
@@ -2767,7 +2782,7 @@ async function partOffline() {
                              null, {timeout: 30000});
   await answerPlace(page);
   await reveal(page);
-  await tap(page, '.m-rmore');
+  await gearOpen(page, 'interface');
   await page.waitForSelector('.kp-btn');
   await tap(page, '.kp-btn');
   await page.waitForSelector('.kp-sheet');
@@ -3677,7 +3692,7 @@ async function partBackground() {
   }
   async function sheet(page) {
     await reveal(page);
-    if ((await page.getAttribute('.m-rmore', 'aria-expanded')) !== 'true') await tap(page, '.m-rmore');
+    await gearOpen(page, 'interface');
     await page.waitForFunction(() => { const b = document.querySelector('.kp-keep'); return !!b && !b.disabled; },
                                null, {timeout: 30000});
     await tap(page, '.kp-keep');
@@ -4451,7 +4466,9 @@ async function partUpdate() {
     await page.waitForFunction(() => !document.documentElement.hasAttribute('data-parseh-away'),
                                null, {timeout: 30000});
     await reveal(page);
-    if ((await page.getAttribute('.m-rmore', 'aria-expanded')) !== 'true') await tap(page, '.m-rmore');
+    // a book's reader keeps its buttons in the gear's last group (a0.5.0); a video's page still under ⋯
+    if (await page.evaluate(() => document.documentElement.classList.contains('pg-reader'))) await gearOpen(page, 'interface');
+    else if ((await page.getAttribute('.m-rmore', 'aria-expanded')) !== 'true') await tap(page, '.m-rmore');
     await page.waitForFunction(() => { const b = document.querySelector('.kp-keep'); return !!b && !b.disabled; },
                                null, {timeout: 60000});
     await tap(page, '.kp-keep');

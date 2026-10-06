@@ -556,6 +556,8 @@ async function partDrag() {
        not exist.  What must refresh is asserted; what cannot is said. */
     const en = MADE.decks.en;
     // [name, address, what to press first, and the proof that it was pressed]
+    // a book's reader has the gear, whose sheet is not in the header (a0.5.0)
+    const READER_GEAR_UP = () => { const p = document.querySelector('.pg-panel'); return !!p && !p.hidden; };
     const OPEN = () => !!document.querySelector('header.m-more');
     const FULL = () => document.documentElement.classList.contains('m-vfullon');
     const SIDE = {width: 844, height: 390}, UP = {width: 390, height: 844};
@@ -568,8 +570,8 @@ async function partDrag() {
       ['a deck', `/exercises/deck/${en.folder}/${en.slug}/`],
       ['a deck, crammed', `/exercises/deck/${en.folder}/${en.slug}/cram`],
       ['a book\'s reader', MADE.readers.en],
-      ['a book\'s reader, ⋯ open', MADE.readers.en, '.m-rmore', OPEN],
-      ['a book\'s reader, ⋯ open, sideways', MADE.readers.en, '.m-rmore', OPEN, SIDE],
+      ['a book\'s reader, the gear open', MADE.readers.en, '[data-parseh-gear]', READER_GEAR_UP],
+      ['a book\'s reader, the gear open, sideways', MADE.readers.en, '[data-parseh-gear]', READER_GEAR_UP, SIDE],
       ['a video', `/youtube/v/${MADE.video}/`],
       ['a video, ⋯ open', `/youtube/v/${MADE.video}/`, '.m-rmore', OPEN],
       // ⛶ is there only sideways: upright a video on the whole screen leaves nothing to read
@@ -596,8 +598,8 @@ async function partDrag() {
       // an open ⋯ panel taller than the screen keeps a pull to itself
       const under = await page.evaluate(y => {
         const e = document.elementFromPoint(195, y);
-        const panel = e && e.closest && e.closest('header.m-more');
-        return panel ? 'on the ⋯ panel, which ' + (panel.scrollHeight > panel.clientHeight + 1
+        const panel = e && e.closest && e.closest('header.m-more, .pg-panel');
+        return panel ? 'on the open panel, which ' + (panel.scrollHeight > panel.clientHeight + 1
                                                     ? 'scrolls' : 'does not scroll')
                      : 'on ' + (e ? e.tagName.toLowerCase() + (e.id ? '#' + e.id : '') : 'nothing');
       }, Math.min(200, Math.round(((page.viewportSize() || {height: 844}).height) / 4)));

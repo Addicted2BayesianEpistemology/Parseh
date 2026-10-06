@@ -296,13 +296,16 @@ class Reader(unittest.TestCase):
         import texparse as T
         for rel, code in (("japanese/mini-ja", "ja"), ("chinese/mini-zh", "zh")):
             with self.subTest(code=code):
+                L0 = languages.get(code)
                 html = self.build(rel)
                 p1 = html.count('<div class="pass p1"')
                 self.assertGreater(p1, 0)
                 self.assertEqual(html.count('<div class="pass p5"'), p1)
                 self.assertEqual(len(re.findall(r'<div class="pass p1"[^>]*>.*?</div>\n'
                                                 r'<div class="pass p5"', html, re.S)), p1)
-                self.assertIn('<button data-toggle="no5" title="the reading alone, in', html)
+                # a button wears its level's NAME, never a digit (a0.5.0), and says what it shows in its title
+                self.assertRegex(html, r'<button data-toggle="no5" title="the reading alone, in [^"]*">'
+                                       + re.escape(L0.passes[1]["name"]) + '</button>')
                 self.assertIn("body.no5 .p5{display:none}", html)
                 # Hover mode brings the text passes back -- but not over a
                 # toggle switched off WHILE it is on: reading the hoverable
@@ -311,8 +314,13 @@ class Reader(unittest.TestCase):
                 # and the toggles come out as one group, named once for the
                 # group rather than each button explaining itself
                 self.assertIn('<span class="pgrp"', html)
-                self.assertIn('which passes you see', html)
-                self.assertIn('title="the text alone (passes 1, 2 and 4)', html)
+                self.assertIn('<span class="pgrpc">levels</span>', html)
+                self.assertNotIn('which passes you see', html)
+                names = [p["name"] for p in languages.get(code).passes]
+                for n, name in zip((1, 5, 2, 3, 4), names):
+                    self.assertRegex(html, r'<button data-toggle="no%d" title="[^"]*">%s</button>' % (n, re.escape(name)))
+                self.assertIn('title="the text alone (the levels %s, %s and %s)'
+                              % (names[0], names[1], names[3]), html)
                 L = languages.get(code)
                 chs = T.parse_book(os.path.join(BOOKS, rel, "main.tex"))
                 first = chs[0].subs[0].chunks[0]
@@ -324,7 +332,10 @@ class Reader(unittest.TestCase):
         html = self.build("persian/mini-fa")
         self.assertNotIn('class="pass p5"', html)
         self.assertNotIn('data-toggle="no5"', html)
-        self.assertIn('title="the text alone (passes 1 and 3)', html)
+        self.assertIn('title="the text alone (the levels With vowels and Plain)', html)
+        self.assertIn('<button data-toggle="no3" title="the sentence as Persian is ordinarily printed, with no '
+                      'marks">Plain</button>', html)
+        self.assertNotRegex(html, r'<button data-toggle="no\d">\d</button>|<button data-toggle="no\d" title="[^"]*">\d</button>')
 
 
 JA_WORDS = {"山へ柴刈りに、": "山(やま) へ 柴刈り(しばかり) に 、",
