@@ -559,6 +559,8 @@ async function partDrag() {
     // a book's reader has the gear, whose sheet is not in the header (a0.5.0)
     const READER_GEAR_UP = () => { const p = document.querySelector('.pg-panel'); return !!p && !p.hidden; };
     const OPEN = () => !!document.querySelector('header.m-more');
+    // a video has no ⋯ any more (a0.5.0): its gear opens a sheet from the foot, which html wears while it is up
+    const GEAR_UP = () => document.documentElement.classList.contains('pg-sheet');
     const FULL = () => document.documentElement.classList.contains('m-vfullon');
     const SIDE = {width: 844, height: 390}, UP = {width: 390, height: 844};
     const pages = [
@@ -573,7 +575,7 @@ async function partDrag() {
       ['a book\'s reader, the gear open', MADE.readers.en, '[data-parseh-gear]', READER_GEAR_UP],
       ['a book\'s reader, the gear open, sideways', MADE.readers.en, '[data-parseh-gear]', READER_GEAR_UP, SIDE],
       ['a video', `/youtube/v/${MADE.video}/`],
-      ['a video, ⋯ open', `/youtube/v/${MADE.video}/`, '.m-rmore', OPEN],
+      ['a video, the gear open', `/youtube/v/${MADE.video}/`, 'header > button.pg-gear', GEAR_UP],
       // ⛶ is there only sideways: upright a video on the whole screen leaves nothing to read
       ['a video on the whole screen, sideways', `/youtube/v/${MADE.video}/`, '.m-vfull', FULL, SIDE],
     ];

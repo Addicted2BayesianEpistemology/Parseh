@@ -643,9 +643,13 @@ html.m-player.m-sparse[data-mode=mobile] .m-subs .w.m-gl:not(.hot):not(:hover){
    html.m-player, put on by lib/parseh.js, which loads lib/mobileplayer.js
    beside this sheet.  The page is the same page -- the video, the transcript,
    the glosses, the cloud -- laid out for a thumb: one line of header, with
-   everything else under ⋯, and nothing on it that writes the video or
-   administers it.  The recording's controls are the dock above, which drives
-   the video through the player's own handle (lib/narrctl.js). */
+   everything else in the gear's sheet (⚙, the last thing on the line, where ⋯
+   was: lib/pagesettings.js, filled by youtube/lib/player.js), and nothing on it
+   that writes the video or administers it.  The recording's controls are the
+   dock above, which drives the video through the player's own handle
+   (lib/narrctl.js).  THE FIRST LINE: ش ▤ the title, Aa, ⛶ (sideways), ?, ⚙.
+   A page the toolkit did not come to (no html.pg-player) keeps the ⋯ menu
+   lib/mobileplayer.js builds for it, and the rules for that menu are below. */
 html.m-player[data-mode=mobile] header{flex-direction:row;flex-wrap:wrap;align-items:center;
   gap:6px;padding:6px 10px}
 html.m-player[data-mode=mobile] header > .hrow:not([hidden]){display:contents}
@@ -654,7 +658,8 @@ html.m-player[data-mode=mobile] header > .hrow:not([hidden]){display:contents}
    stop, and whatever a later player adds that nobody here has named -- is not
    on a phone at all */
 html.m-player[data-mode=mobile] header > :not(a.home,.ttl,#follow,#hoverpause,#aloud,#pin,
-  #dictmode,#defmode,#defmt,#theme,#typo,.px-ask,.kp-btn,.kp-off,.kp-again,.kp-wait,[data-layout=mobile]){display:none!important}
+  #dictmode,#defmode,#defmt,#theme,#typo,.px-ask,.kp-btn,.kp-off,.kp-again,.kp-wait,[data-layout=mobile],
+  [data-parseh-gear]){display:none!important}
 html.m-player[data-mode=mobile] header #dl{display:none!important}
 html.m-player[data-mode=mobile] header :is(button,select,a.home){min-height:48px;
   font-size:15px;padding:6px 12px;border-radius:10px;-webkit-tap-highlight-color:transparent}
@@ -675,6 +680,14 @@ html.m-player[data-mode=mobile] header .px-ask{order:5}
 html.m-player[data-mode=mobile] header :is(.kp-off,.kp-again,.kp-wait){order:7}
 html.m-player[data-mode=mobile] header .m-rmore{order:6;margin-inline-start:auto;font-size:20px;
   line-height:1;letter-spacing:.06em}
+/* THE GEAR TAKES ⋯'S PLACE: the last thing on the line, pushed to its end.  Everything the old
+   menu held -- following, looking a word up, the theme, the Browser | Mobile switch, Keep -- is a
+   row of its sheet, so with the gear mounted (html.pg-player) none of it is on the page's bar:
+   the rule below the next puts the controls away that the whitelist above lets through for the
+   page that has no gear */
+html.m-player[data-mode=mobile] header .pg-gear{order:6;margin-inline-start:auto}
+html.m-player.pg-player[data-mode=mobile] header > :is(#follow,#hoverpause,#aloud,#pin,#dictmode,
+  #defmode,#defmt,#theme,.parseh-mode,.kp-btn){display:none!important}
 html.m-player[data-mode=mobile] header.m-more .m-rmore{background:var(--hl);
   border-color:var(--accent);color:var(--accent)}
 /* the rest, under ⋯: a line saying what the group is, then the group */
@@ -745,6 +758,10 @@ html.m-player.m-vfullon[data-kind=audio][data-mode=mobile] body #vid{width:min(9
   html.m-player[data-mode=mobile] body.sbs #grip{position:absolute;top:0;right:-10px;bottom:0;
     width:24px;height:auto;margin:0;border:none;border-radius:0;background:transparent;
     touch-action:none;cursor:ew-resize}
+  /* the three dots on the divider (youtube/lib/style.css draws them for the wide window; here they stand upright) */
+  html.m-player[data-mode=mobile] body.sbs #grip::before{position:absolute;top:50%;left:50%;
+    transform:translate(-50%,-50%);width:4px;height:30px;
+    background:radial-gradient(circle,var(--dim) 1.6px,transparent 2.1px) 50% 0 / 4px 10px repeat-y}
   html.m-player[data-mode=mobile] body.sbs main{margin-left:var(--sidew,46%);max-width:none;
     padding:10px 14px calc(84px + env(safe-area-inset-bottom))}
   html.m-player[data-mode=mobile] body.sbs main #segs{max-width:none}
@@ -791,16 +808,19 @@ html.m-player[data-mode=mobile] .m-vout.nc-idle{opacity:.33}
    two beside it faint while they are off and nearly white while they show */
 html.m-player[data-mode=mobile] .m-vctx{position:absolute;z-index:6;
   top:calc(10px + env(safe-area-inset-top));right:calc(66px + env(safe-area-inset-right));
-  min-width:48px;min-height:48px;padding:0;border-radius:12px;
+  width:82px;min-width:48px;min-height:48px;padding:0 4px;border-radius:12px;
   background:rgba(0,0,0,.55);border:1px solid rgba(255,255,255,.4);color:#fff;
-  -webkit-tap-highlight-color:transparent;display:inline-flex;align-items:center;
-  justify-content:center;transition:opacity .35s ease}
+  -webkit-tap-highlight-color:transparent;display:inline-flex;flex-direction:column;
+  align-items:center;justify-content:center;gap:4px;transition:opacity .35s ease}
+/* ...and says what it is: three bars are not a word (the owner) */
+html.m-player[data-mode=mobile] .m-vctx-word{font:inherit;font-size:11px;line-height:1.1;
+  letter-spacing:.02em;white-space:nowrap}
 html.m-player[data-mode=mobile] .m-vctx.nc-idle{opacity:.33}
 html.m-player[data-mode=mobile] .m-vctx[aria-pressed=true]{background:rgba(255,255,255,.2);border-color:#fff}
 /* and beside that, the size of the subtitles: Aa, the header's own word for
    the text size, opening the same panel over the picture */
 html.m-player[data-mode=mobile] .m-vtxt{position:absolute;z-index:6;
-  top:calc(10px + env(safe-area-inset-top));right:calc(122px + env(safe-area-inset-right));
+  top:calc(10px + env(safe-area-inset-top));right:calc(156px + env(safe-area-inset-right));
   min-width:48px;min-height:48px;padding:0;border-radius:12px;font-size:17px;line-height:1;
   background:rgba(0,0,0,.55);border:1px solid rgba(255,255,255,.4);color:#fff;
   -webkit-tap-highlight-color:transparent;display:inline-flex;align-items:center;
@@ -887,6 +907,13 @@ html.m-player[data-mode=mobile] .m-subs .m-subline .w:is(:hover,.hot){
   background:rgba(255,255,255,.16);box-shadow:0 0 0 3px rgba(255,255,255,.16)}
 /* the caption's own time button is not a subtitle: the line is */
 html.m-player[data-mode=mobile] .m-subs .m-subline :is(.lab,.note,.seg-note){display:none}
+/* THE GEAR'S SHEET (html.pg-sheet, lib/pagesettings.js) is half the screen and the page stays above it, so a
+   change shows at once: the reading-place bar and the keep bar (415) would stand over it, so they step
+   aside; the transcript can be scrolled up into the part that is left (the sheet's own room under the last
+   line), and what is followed or scrolled to is kept above it, not behind it */
+html.m-player.pg-sheet[data-mode=mobile] :is(.pf-bar,.kp-bar){display:none}
+html.m-player.pg-sheet[data-mode=mobile]{scroll-padding-bottom:max(240px,55vh)}
+html.m-player.pg-sheet[data-mode=mobile] body main{padding-bottom:calc(max(240px,55vh) + 24px)!important}
 html.m-player[data-mode=mobile] .m-vfull{font-size:19px;line-height:1}
 html.m-player[data-mode=mobile] .m-vfull[aria-pressed=true]{background:var(--hl);
   border-color:var(--accent);color:var(--accent)}

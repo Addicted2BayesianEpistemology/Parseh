@@ -8,6 +8,13 @@
 <link rel="stylesheet" href="__BASE__/lib/style.css">
 <link rel="stylesheet" href="/lib/langs.css">
 <script src="/lib/parseh.js"></script>
+<!-- THE GEAR, ⚙ page: the one panel this page's settings live in (lib/pagesettings.js draws it,
+     player.js says what is in it).  Loaded here, synchronously, so that the layers that used to
+     draw a menu of their own (lib/mobileplayer.js, Parseh.typo) can ask whether there is a gear
+     when they start; and the page wears pg-player at once, before the first paint, because it is
+     what hides the controls that live only in the gear -- a page without the toolkit keeps them -->
+<script src="/lib/pagesettings.js"></script>
+<script>if (window.ParsehGear) document.documentElement.classList.add('pg-player');</script>
 <!-- a held finger opens what a shift-click (copy) and an alt-click (a card)
      open for a mouse, in this transcript as in a book's reader (§4.6) -->
 <script src="/lib/wordtouch.js" defer></script>
@@ -72,7 +79,11 @@
     title="copy a prompt that has an LLM gloss a stretch of the video, and fill in its answer">gloss with an LLM</button>
   <span class="sp"></span>
   <span id="pos"></span>
-  <button id="follow" title="keep the playing caption in view">follow</button>
+  <!-- keep in view / keep video / beside the text / the reading alone are on the page AND in the gear
+       (the panel's Watching & reading); hover ⏸, definitions, translated and the reading-help link are in
+       the gear only -- the stylesheet puts them away under html.pg-player and they stay here, because
+       the gear presses them -->
+  <button id="follow" title="keep the playing caption in view">keep in view</button>
   <button id="hoverpause" title="pause the video while a gloss is open">hover&nbsp;⏸</button>
   <!-- every phrase that carries a note, lit and counted, and ‹ › to walk from one
        to the next: to see where a model flagged a problem.  It writes nothing,
@@ -90,12 +101,12 @@
   <button id="defmt" hidden disabled>translated</button>
   <!-- only a language divided into words (Japanese, Chinese) shows it; the
        script names it after the reading (kana, pinyin) -->
-  <button id="aloud" hidden title="the reading alone, each chunk as it is said">reading</button>
+  <button id="aloud" hidden title="show only the reading: each phrase as it is said, the text in its gloss">reading only</button>
   <a id="lookupset" href="/settings/reading-help/" title="get a dictionary for this language, to look words up where nothing is glossed">reading help</a>
-  <button id="sbs" title="put the video beside the transcript instead of above it">◫&nbsp;side</button>
-  <button id="pin" title="keep the video pinned while scrolling">pin</button>
+  <button id="sbs" title="put the video beside the text instead of above it">beside the text</button>
+  <button id="pin" title="keep the video in view while the transcript scrolls under it">keep video</button>
   <button id="theme" data-parseh-theme title="theme: light / dark / sepia">◐</button>
-  <button id="typo" title="text size and margins">Aa</button>
+  <button id="typo" title="the text: its size, width and spacing (opens the page's settings at Text)">Aa</button>
   <button id="stop" data-parseh-stop title="stop the server">⏻</button>
 </header>
 
@@ -109,7 +120,7 @@
        what actually failed, a way to try again, and a way out to YouTube. -->
   <div id="novid" hidden></div>
 </div>
-<div id="grip" title="drag to resize the video — double-click to reset"></div>
+<div id="grip" title="drag to make the video bigger or smaller — double-click for its usual size"></div>
 </div>
 
 <main>

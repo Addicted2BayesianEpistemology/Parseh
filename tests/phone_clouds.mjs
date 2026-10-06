@@ -464,14 +464,22 @@ async function tapWord(page, sel) {
               'a cloud or a sheet');
   await sleep(250);
 }
-// the dictionary switch, pressed as a finger presses it: in the gear's "Looking a word up" on a book's reader
-// (a0.5.0), and still under ⋯ on a video's page, which has no gear yet
+// the dictionary switch, pressed as a finger presses it: in the gear's sheet on a page that has the gear (a book's
+// reader and a video's page, since a0.5.0), under ⋯ on one that has none
 async function switchDict(page) {
   if (await page.evaluate(() => document.documentElement.classList.contains('pg-reader'))) {
     await gearOpen(page, 'looking');
     await page.waitForSelector('.pg-panel [data-pg-row=dictmode]:not([hidden])');
     await gearSwitch(page, 'dictmode', true);
     assert(await page.evaluate(() => document.querySelector('#dictmode').classList.contains('on')), 'the dictionary switched on, in the gear');
+  } else if (!(await page.$('.m-rmore')) && await page.$('button.pg-gear')) {
+    await tap(page, 'button.pg-gear');
+    await page.waitForFunction(() => ParsehGear.mounted().isOpen());
+    await page.locator('.pg-panel [data-pg-row="dict"] .pg-switch').first().scrollIntoViewIfNeeded();
+    await tap(page, '.pg-panel [data-pg-row="dict"] .pg-switch');
+    assert(await page.evaluate(() => document.querySelector('#dictmode').classList.contains('on')), 'the dictionary switched on, in the gear');
+    await tap(page, 'button.pg-gear');
+    await page.waitForFunction(() => !ParsehGear.mounted().isOpen());
   } else {
     await tap(page, '.m-rmore');
     await page.waitForSelector('#dictmode', {state: 'visible'});
@@ -1624,6 +1632,22 @@ try {
                     .map(t => t.querySelector('input').id.replace('st-', ''))};
   });
   const CJK_ROWS = {fa: [], ja: ['cjkSpace', 'kanaContrast', 'kanaSize'], zh: ['cjkSpace']};
+  // the header's Aa opens the GEAR at Text (a0.5.0), whose sliders are the Aa panel's own fields: what is read
+  // is the sheet and its Text group, and what is moved is the gear's slider for a field
+  const gearSlideTo = (p, row, v) => p.evaluate(([row, v]) => {
+    const i = document.querySelector(`.pg-panel[data-pg-page=video] [data-pg-row="${row}"] input[type=range]`);
+    i.value = v;
+    i.dispatchEvent(new Event('input', {bubbles: true}));
+  }, [row, v]);
+  const gearNow = p => p.evaluate(() => {
+    const el = document.querySelector('.pg-panel[data-pg-page=video]'), r = el.getBoundingClientRect();
+    const hd = el.querySelector('.pg-head').getBoundingClientRect();
+    const at = document.elementFromPoint(hd.left + hd.width / 2, hd.top + hd.height / 2);
+    const text = el.querySelector('[data-pg-group=text]');
+    return {up: !el.hidden, onTop: !!at && el.contains(at), t: r.top, b: r.bottom, l: r.left, r: r.right, W: innerWidth, H: innerHeight,
+            header: document.querySelector('header').getBoundingClientRect().height,
+            rows: [...text.querySelectorAll('[data-pg-row]')].filter(t => !t.hidden && t.getClientRects().length).map(t => t.dataset.pgRow)};
+  });
   for (const [lang, vid, dir] of [['fa', FA_VIDEO, 'rtl'], ['ja', JA_VIDEO, 'ltr'], ['zh', ZH_VIDEO, 'ltr']]) {
     // sideways, on the whole screen
     const p = await pageFor(LAND, 'mobile', 'size ' + lang);
@@ -1675,8 +1699,8 @@ try {
     await shot(p, `size-${lang}-ctx-48`);
     await p.context().close();
 
-    // upright: the transcript's own size from the header, and no subtitles' slider where
-    // there is no whole screen
+    // upright: the transcript's own size from the header (Aa opens the gear's sheet at Text; the subtitles'
+    // slider is among its rows, said to be for a phone held sideways)
     const u = await pageFor(PHONE, 'mobile', 'size upright ' + lang);
     await openVideo(u, vid, 4);
     for (const theme of ['light', 'dark', 'sepia']) {
@@ -1684,13 +1708,13 @@ try {
       await sleep(150);
       await tap(u, '#typo');
       await sleep(250);
-      const f = await panelNow(u);
-      eq([f.up, f.onTop, f.rows, f.header < 70], [true, true, ['fa', 'gl', 'width', 'lead', ...CJK_ROWS[lang]], true],
-         `${lang}, ${theme}, upright: Aa on the header's first line opens the panel, on top; no subtitles' slider`);
-      assert(f.t >= 0 && f.b <= f.H && f.l >= 0 && f.r <= f.W, `${lang}, ${theme}, upright: on the screen`);
+      const f = await gearNow(u);
+      eq([f.up, f.onTop, f.rows, f.header < 70], [true, true, ['fa', 'sub', 'gl', 'width', 'lead', ...CJK_ROWS[lang], 'reset'], true],
+         `${lang}, ${theme}, upright: Aa on the header's first line opens the gear at Text, on top`);
+      assert(f.t >= 0 && f.b <= f.H + 0.5 && f.l >= 0 && f.r <= f.W, `${lang}, ${theme}, upright: on the screen`);
       const before = await u.evaluate(() => parseFloat(getComputedStyle([...document.querySelectorAll('#segs .seg .fa')]
                                                                         .find(e => e.querySelector('.w'))).fontSize));
-      await slideTo(u, 'st-fa', 32);
+      await gearSlideTo(u, 'fa', 32);
       await sleep(150);
       const after = await u.evaluate(() => [parseFloat(getComputedStyle([...document.querySelectorAll('#segs .seg .fa')]
                                                                         .find(e => e.querySelector('.w'))).fontSize),
@@ -1698,8 +1722,8 @@ try {
       // (a phone's width takes 1px off, style.css)
       eq(after, [31, '20px'], `${lang}, ${theme}, upright: the transcript's words ${before} → 32px (31 at a phone's width) and the subtitles' size untouched`);
       if (theme !== 'sepia') await shot(u, `size-${lang}-${theme}-upright`);
-      await slideTo(u, 'st-fa', 20);
-      await tap(u, '.parseh-typo .tclose');
+      await gearSlideTo(u, 'fa', 20);
+      await tap(u, '.pg-panel[data-pg-page=video] .pg-x');
     }
     await u.context().close();
   }

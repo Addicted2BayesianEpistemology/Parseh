@@ -42,6 +42,15 @@ header button{font:inherit;font-size:13px;padding:5px 9px;
   border:1px solid var(--rule);background:var(--bg);color:var(--ink);
   border-radius:6px;cursor:pointer;white-space:nowrap}
 header button.on{background:var(--accent);color:var(--accent-fg);border-color:var(--accent)}
+/* THE GEAR HOLDS WHAT THE BAR NO LONGER SHOWS (a0.5.0): hover ⏸, definitions, translated and the
+   reading-help link live in the panel (youtube/lib/player.js, "THE GEAR") and are put away here --
+   put away, not removed, for the gear presses the buttons so that their own handlers do the work.
+   Under html.pg-player, which the page wears once the toolkit has come (player.html): a page without
+   it keeps them where they were */
+html.pg-player header :is(#hoverpause,#defmode,#defmt,#lookupset){display:none}
+/* the gear is the last thing on the bar and stays at its right end, on a second row of its own when the bar
+   wraps (the popover opens under it, right edges together) */
+html.pg-player header .pg-gear{margin-inline-start:auto}
 #pos{font-variant-numeric:tabular-nums;color:var(--dim);font-size:12px}
 
 /* numbers must not fall into a script's locl (Persian digits) -- same rule
@@ -99,16 +108,17 @@ body:not(.nopin) #vid iframe,body:not(.nopin) #vid video{max-height:38vh}
 body.sized #vid,body.sized:not(.nopin) #vid{max-height:none}
 body.sized #vid iframe,body.sized #vid video,body.sized:not(.nopin) #vid iframe,body.sized:not(.nopin) #vid video{max-height:none}
 
-/* the resize grip: a small pill under the video; drag it vertically,
-   double-click it to go back to the default size */
-#grip{width:72px;height:13px;margin:6px auto 0;border-radius:7px;
+/* the resize grip: a pill under the video with three dots on it, so it LOOKS like something to
+   take hold of (its tooltip says what it does); drag it vertically, double-click it to go back
+   to the default size.  The gear's «Video size» is the same size from the panel */
+#grip{width:84px;height:16px;margin:6px auto 0;border-radius:8px;
   border:1px solid var(--rule);background:var(--card);
   cursor:ns-resize;touch-action:none;user-select:none;
   display:flex;align-items:center;justify-content:center}
-#grip::before{content:"";width:26px;height:2px;border-radius:1px;
-  background:var(--faint)}
+#grip::before{content:"";width:30px;height:4px;
+  background:radial-gradient(circle,var(--dim) 1.6px,transparent 2.1px) 0 50% / 10px 4px repeat-x}
 #grip:hover{border-color:var(--accent)}
-#grip:hover::before{background:var(--accent)}
+#grip:hover::before{background-image:radial-gradient(circle,var(--accent) 1.6px,transparent 2.1px)}
 /* while dragging, the iframe must not swallow the pointer */
 body.resizing #vid iframe,body.resizing #vid video{pointer-events:none}
 
@@ -851,8 +861,10 @@ body.sbs #vid iframe,body.sbs #vid video,body.sbs.nopin #vid iframe,body.sbs.nop
     width:12px;height:auto;margin:0;border:none;border-radius:0;
     background:transparent;cursor:ew-resize}
   body.sbs #grip::before{position:absolute;top:50%;left:50%;
-    transform:translate(-50%,-50%);width:2px;height:38px;border-radius:1px}
+    transform:translate(-50%,-50%);width:4px;height:30px;
+    background:radial-gradient(circle,var(--dim) 1.6px,transparent 2.1px) 50% 0 / 4px 10px repeat-y}
   body.sbs #grip:hover{border:none;background:transparent}
+  body.sbs #grip:hover::before{background-image:radial-gradient(circle,var(--accent) 1.6px,transparent 2.1px)}
 
   /* the transcript takes the rest, its own column still measured for reading */
   body.sbs main{margin-left:var(--sidew,42%);max-width:none;
