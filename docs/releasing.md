@@ -163,7 +163,7 @@ with `TMPDIR` on the main disk:
 
 | Suite | State | Result |
 |---|---|---|
-| unit — `python3 -m unittest discover -s tests -p "test_*.py"` | green | `Ran 3616 tests … OK (skipped=14)` |
+| unit — `python3 -m unittest discover -s tests -p "test_*.py"` | green | `Ran 3627 tests … OK (skipped=14)` |
 | `python3 tests/smoke.py` | green | `1897 passed, 0 failed, 21 skipped` |
 | the 77 `tests/*.mjs` | green | those under *Flaky* below fail now and then, and pass on a second run, alone |
 
