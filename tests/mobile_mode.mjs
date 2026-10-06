@@ -58,6 +58,10 @@
 //      switch was in it), the mobile bar's controls 48x48 at least; what the
 //      browser bar sheds on a phone is still named for a screen reader, and
 //      at 1280px it sheds nothing
+//   h) the name in the bar and the hub's big title are PAINTED in TeX Gyre
+//      Chorus (what the browser draws, not what the sheet asks for), the
+//      letter beside the name is not, one weight, and each bar is as high as
+//      it was when the name was set in the sans
 //   CHROME_BIN=... PARSEH_PYTHON=python3 deno run --allow-all tests/mobile_mode.mjs
 //   MOBILE_PARTS=api (or hub) runs one part; SHOTS=<dir> saves the hub's
 //   screenshots (each width, each palette, each mode)
@@ -290,9 +294,10 @@ const MOBILE_CLICKABLE = page => page.evaluate(() => ['a:/', 'button:browser', '
   ...([...document.querySelectorAll('.px-ask')].filter(e => e.getClientRects().length).length ? ['button:explain'] : []),
   ...[...document.querySelectorAll('.m-langs .chip')].map(c => 'button:' + c.getAttribute('data-pick')),
   'a:/books/', 'a:/youtube/', 'a:/studio/', 'a:/exercises/', 'a:/guide/', 'a:/m/install/', 'a:/licences/',
-  // the author's two links (lib/author.py), the last line of the hub, the only
-  // ones that leave Parseh: tests/signature.mjs drives what they do
-  'a:https://github.com/Addicted2BayesianEpistemology', 'a:https://imbrunoursino.net/']);
+  // the foot's two links (lib/author.py), the last line of the hub, the only
+  // ones that leave Parseh: Parseh's own repository and the author's website;
+  // tests/signature.mjs drives what they do
+  'a:https://github.com/parseh-io/Parseh', 'a:https://imbrunoursino.net/']);
 
 // the temporary toolbox: the tree hub_inbox.mjs boots, plus a note in every
 // language and the book library page
@@ -710,6 +715,48 @@ async function partHub() {
       eq(await page.evaluate(q => [...document.querySelectorAll(q + ' .where, ' + q + ' .word')].map(e => [e.textContent.trim(), e.getBoundingClientRect().width > 20]), B_BAR),
          [['Parseh', true], ['the hub', true], ['stop', true]], '1280px: the bar says Parseh, the hub and stop, as it did');
       await ctx.close();
+    }
+
+    // ---- h) THE NAME IS SET IN TeX GYRE CHORUS (the owner, 2026-10-06): the website's own face, in the bar
+    // and in the hub's big title; the letter in the circle beside it keeps nastaliq.  What the browser PAINTS
+    // is asked of it (CSS.getPlatformFontsForNode), not what the sheet asks for, and the bar is no taller for
+    // the new face than it was with the sans the name had.
+    console.log('\n== the name in the bar and in the hub\'s title');
+    {
+      const paints = async (page, sel) => {
+        const cdp = await page.context().newCDPSession(page);
+        await cdp.send('DOM.enable'); await cdp.send('CSS.enable');
+        const {root} = await cdp.send('DOM.getDocument', {depth: 0});
+        const {nodeId} = await cdp.send('DOM.querySelector', {nodeId: root.nodeId, selector: sel});
+        const r = await cdp.send('CSS.getPlatformFontsForNode', {nodeId});
+        await cdp.detach();
+        return r.fonts.map(f => f.familyName);
+      };
+      const high = (page, q) => page.evaluate(q => Math.round(document.querySelector(q).getBoundingClientRect().height * 100) / 100, q);
+      const cases = [
+        ['the browser hub, 1280px', {width: 1280, height: 800}, 'browser', '.parseh-bar:not(.m-bar)', '.hub-browser .brand .lat', 15],
+        ['the mobile hub, 1280px', {width: 1280, height: 800}, 'mobile', '.m-bar', '.hub-mobile .m-brand .lat', 16],
+        // a phone held sideways is wide enough for the name to come back beside the letter; upright it is the letter alone
+        ['the mobile hub, 430px', {width: 430, height: 800, touch: true}, 'mobile', '.m-bar', '.hub-mobile .m-brand .lat', 16],
+      ];
+      for (const [label, vp, mode, bar, title, was] of cases) {
+        const ctx = await browser.newContext({viewport: {width: vp.width, height: vp.height}, ...(vp.touch ? {isMobile: true, hasTouch: true} : {})});
+        const page = await ctx.newPage();
+        page.on('pageerror', e => { errors.push('h: ' + e.message); console.log('PAGE ERROR', e.message); });
+        await page.goto(B + '/');
+        await page.evaluate(m => Parseh.mode.set(m), mode);
+        await settle(page);
+        eq(await paints(page, `${bar} .home .word`), ['TeX Gyre Chorus'], `${label}: the name in the bar is painted in TeX Gyre Chorus`);
+        assert(!(await paints(page, `${bar} .home .glyph`)).includes('TeX Gyre Chorus'),
+               `${label}: the letter beside it is not (${(await paints(page, `${bar} .home .glyph`)).join(', ')})`);
+        eq(await paints(page, title), ['TeX Gyre Chorus'], `${label}: the hub's title is painted in TeX Gyre Chorus`);
+        eq(await page.evaluate(q => getComputedStyle(document.querySelector(q)).fontWeight, `${bar} .home`), '400',
+           `${label}: one weight, so that no bold is faked`);
+        const kept = await high(page, bar);
+        await page.addStyleTag({content: `${bar} .home{font:600 ${was}px/1.5 -apple-system,'Segoe UI',Roboto,system-ui,sans-serif!important}`});
+        eq(await high(page, bar), kept, `${label}: the bar is as high as it was when the name was set in the sans (${kept}px)`);
+        await ctx.close();
+      }
     }
 
     assert(!/Traceback/.test(log.join('')), 'no traceback in the hub\'s log');

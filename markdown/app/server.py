@@ -200,6 +200,9 @@ WEB_FONTS = [
     ("texgyreheros-regular.otf", "kpsewhich"),
     ("texgyreheros-bold.otf", "kpsewhich"),
     ("texgyreheros-italic.otf", "kpsewhich"),
+    # the face that sets the NAME Parseh in the studio's bar (app.css, mobile.css), as
+    # in every other bar of Parseh and on the website: no document is set in it
+    ("texgyrechorus-mediumitalic.otf", None),
 ] + [(f, None) for f in dict.fromkeys(
     w for L in languages.LANGS.values() for w in (L.fonts.get("web_files") or []))]
 

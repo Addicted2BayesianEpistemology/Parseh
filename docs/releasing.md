@@ -780,13 +780,17 @@ releases, **Go back to <previous>**).
 organisation `parseh-io`. It was moved there by a *transfer* of the
 repository the owner's own account held, not by making a new one, so that its
 releases, its tags and the road every earlier install updates by came along.
-The author's profile (the GitHub link at the foot of the hub) is a
-**person's** address and stays where he is; it is not the project's, and
-`lib/author.py` and `lib/project.py` say so.
+The author's profile (the GitHub link beside his name: the Licences page,
+Settings → About and the README) is a **person's** address and stays where
+he is; it is not the project's, and `lib/author.py` and `lib/project.py` say
+so. The GitHub link at the foot of the hub, of the Settings hub and of every
+page of the guide, on the other hand, is the **project's**: the page that
+draws the foot hands `project.GITHUB_URL` to `lib/author.py`.
 
 **One module says where Parseh lives: `lib/project.py`.** The update road
 (the feed Settings → Updating Parseh asks, the releases page its refusals
-name), the two links at the foot of every page exported from the studio, the
+name), the GitHub link at the foot of the hub, the Settings hub and the guide,
+the two links at the foot of every page exported from the studio, the
 phone app's icons and the line each download introduces itself with are all
 built from it, and nothing else in the tree spells the organisation or the
 domain. **A move is one edit there**, then:

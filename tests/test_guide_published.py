@@ -235,13 +235,44 @@ class TheInstalledGuideHasNoBar(unittest.TestCase):
             text = p.read_text(encoding="utf-8")
             self.assertNotIn("ps-bar", text, str(p.relative_to(ROOT)))
 
-    def test_the_installed_guide_does_not_carry_the_bars_face(self):
-        # the face is the published layout's alone: no copy in the committed site, and its name is in no installed page
-        fonts = GUIDE / "site" / "_parseh" / "fonts"
-        self.assertTrue(fonts.is_dir())
-        self.assertFalse((fonts / "texgyrechorus-mediumitalic.otf").exists())
+    def test_the_installed_guide_draws_nothing_in_the_bars_face(self):
+        # TeX Gyre Chorus sets the name Parseh in the bars of the app and of the studio since a0.5.0, so the studio's
+        # stylesheet that the guide carries names it (the next test); what the installed guide has no part in is
+        # the NAME's drawing: no page names the face, there is no bar, and the guide's own header, "Parseh guide",
+        # is set in the guide's own faces
         for p in html_files(GUIDE / "site") + [GUIDE / "index.html"]:
             self.assertNotIn("TeX Gyre Chorus", p.read_text(encoding="utf-8"), str(p.relative_to(ROOT)))
+        for p in (GUIDE / "assets" / "guide.css", GUIDE / "assets" / "guide.js"):
+            self.assertNotIn("Chorus", p.read_text(encoding="utf-8"), str(p.relative_to(ROOT)))
+
+    def test_the_committed_guide_has_the_face_if_and_only_if_its_studio_sheet_names_it(self):
+        # a sheet that names a face travels with the file (the compile copies every `url(fonts/...)` it finds), and a
+        # file nothing names is not there: so this holds before the compile that follows the sheet's change and after it
+        run = GUIDE / "site" / "_parseh"
+        named = "texgyrechorus-mediumitalic.otf" in (run / "studio.css").read_text(encoding="utf-8")
+        face = run / "fonts" / "texgyrechorus-mediumitalic.otf"
+        self.assertEqual(face.is_file(), named)
+        if named:
+            self.assertEqual(face.read_bytes(), (ROOT / "lib" / "fonts" / "texgyrechorus-mediumitalic.otf").read_bytes())
+
+    def test_a_plain_compile_carries_the_face_the_studio_sheet_names_and_draws_nothing_in_it(self):
+        # the studio's app.css names TeX Gyre Chorus for the name in its bar (.hublink), and the guide's compile takes
+        # that sheet and every font it names: the file is in the installed guide, its @font-face is in studio.css,
+        # and not one page of it sets anything in the face
+        with tempfile.TemporaryDirectory(prefix="guide-plain-face-") as td:
+            out = Path(td) / "site"
+            report = Site(GUIDE).build(out)
+            self.assertEqual(report.errors, [])
+            face = out / "_parseh" / "fonts" / "texgyrechorus-mediumitalic.otf"
+            self.assertEqual(face.read_bytes(), (ROOT / "lib" / "fonts" / "texgyrechorus-mediumitalic.otf").read_bytes())
+            css = (out / "_parseh" / "studio.css").read_text(encoding="utf-8")
+            self.assertRegex(css, r'@font-face\s*\{\s*font-family:\s*"TeX Gyre Chorus";[^}]*url\(fonts/texgyrechorus-mediumitalic\.otf\)')
+            # scoped to the guide's article like every rule of the studio's chrome, so it reaches nothing outside it
+            self.assertRegex(css, r':is\(\.pz,\.modal-overlay\) \.hublink\s*\{[^}]*"TeX Gyre Chorus"')
+            files = html_files(out)
+            self.assertGreater(len(files), 100)
+            for p in files:
+                self.assertNotIn("TeX Gyre Chorus", p.read_text(encoding="utf-8"), str(p.relative_to(out)))
 
     def test_a_plain_compile_has_no_bar(self):
         # the switch is off unless assemble_pages turns it on: the compile

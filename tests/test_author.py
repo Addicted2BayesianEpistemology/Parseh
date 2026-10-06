@@ -15,16 +15,21 @@ only: nothing is fetched from either address.
 The installation's About settings page also carries his name and the two
 links; it is Parseh's own chrome, rather than user-authored content.
 
-Here: the two addresses and the name live once, and GitHub's is the account
-Parseh's own repository is under; the module needs nothing but the standard
-library, and neither does the guide's compiler that imports it; every foot
-says the two words and names him only for a screen reader and a hover; and
-no page of what a person makes carries any of it.  What the pages DO with
-the links -- their colour in the three themes, a finger's height on a phone,
-no request before a click, a new tab at the address -- is driven in a
-browser by tests/signature.mjs.  The foots' exact markup is pinned where
-each foot is already tested (test_version.py, test_licences.py,
-test_mobile_mode.py, test_html_guide.py).
+AND, ON 2026-10-06: at a FOOT the word "GitHub" leads to PARSEH's repository
+(lib/project.py), and a screen reader and a hover say "Parseh on GitHub"; his
+own profile stays where his name stands as the author -- the Licences page,
+About and the README -- as "Bruno Ursino on GitHub".
+
+Here: the two addresses and the name live once, and the author's is a person's
+while the project's is an organisation's, handed to a foot by the page that
+draws it; the module needs nothing but the standard library, and neither does
+the guide's compiler that imports it; every foot says the two words and names
+only for a screen reader and a hover; and no page of what a person makes
+carries any of it.  What the pages DO with the links -- their colour in the
+three themes, a finger's height on a phone, no request before a click, a new
+tab at the address -- is driven in a browser by tests/signature.mjs.  The
+foots' exact markup is pinned where each foot is already tested
+(test_version.py, test_licences.py, test_mobile_mode.py, test_html_guide.py).
 """
 import ast
 import re
@@ -39,10 +44,15 @@ ROOT = Path(__file__).resolve().parents[1]
 for p in ("markdown/exlex", "markdown/app", "lib", "youtube/lib", "."):
     sys.path.insert(0, str(ROOT / p))
 import author                                                  # noqa: E402
+import project                                                 # noqa: E402
 
 NAME = "Bruno Ursino"
-GITHUB = "https://github.com/Addicted2BayesianEpistemology"
+GITHUB = "https://github.com/Addicted2BayesianEpistemology"      # HIS profile: the author line's
+PROJECT = "https://github.com/parseh-io/Parseh"                  # PARSEH's repository: a foot's
 SITE = "https://imbrunoursino.net/"
+PROJECT_LABEL = "Parseh on GitHub"
+PERSON_LABEL = "Bruno Ursino on GitHub"
+SITE_LABEL = "imbrunoursino.net, Bruno Ursino's website"
 
 
 class Visible(HTMLParser):
@@ -101,16 +111,25 @@ class TheModule(unittest.TestCase):
         self.assertEqual(author.YEAR, 2026)
 
     def test_the_author_s_address_is_a_person_s_and_the_project_s_an_organisation_s(self):
-        import project
         import webexport
         # since a0.4.4 the project lives in an organisation (lib/project.py); the author's link is HIS profile
         # and stays where he is, so the two are no longer the same account's
         self.assertNotEqual(author.GITHUB_URL.split("/")[3], project.ORG)
         self.assertFalse(project.GITHUB_URL.startswith(author.GITHUB_URL + "/"))
         self.assertFalse(author.GITHUB_URL.startswith(project.GITHUB_URL))
+        self.assertEqual(project.GITHUB_URL, PROJECT)
         # and the export's footer links the project, never the person
         self.assertEqual(webexport.GITHUB, project.GITHUB_URL)
         self.assertNotEqual(webexport.GITHUB, author.GITHUB_URL)
+
+    def test_the_author_module_knows_no_address_of_the_project_it_is_handed_one(self):
+        # a foot's GitHub is the project's, and the project's address is lib/project.py's alone: this
+        # file is standard library only and imports no other module of Parseh, so it cannot read it --
+        # and it must not copy it either, or the next move of the project would be two edits
+        src = (ROOT / "lib" / "author.py").read_text(encoding="utf-8")
+        self.assertNotIn("parseh-io", src)
+        self.assertNotIn(project.GITHUB_URL, src)
+        self.assertFalse(hasattr(author, "PROJECT_URL"))
 
     def test_a_link_opens_apart_tells_the_site_nothing_and_names_the_person(self):
         for a, url, text, label in ((author.github_link(), GITHUB, "GitHub", "Bruno Ursino on GitHub"),
@@ -123,9 +142,39 @@ class TheModule(unittest.TestCase):
         for a in two:
             self.assertEqual((a["target"], a["rel"]), ("_blank", "noopener noreferrer"))
             self.assertEqual(a["aria-label"], a["title"])
-        self.assertEqual([a["title"] for a in two], ["Bruno Ursino on GitHub", "imbrunoursino.net, Bruno Ursino's website"])
-        # the words a foot SHOWS are the two names and the dot between them
+        self.assertEqual([a["title"] for a in two], [PERSON_LABEL, SITE_LABEL])
+        # the words a line SHOWS are the two names and the dot between them
         self.assertEqual("".join(read(author.links()).text), "GitHub · imbrunoursino.net")
+
+    def test_a_foot_s_first_link_is_the_project_s_the_second_the_person_s(self):
+        # the same words as the author line's, another address and another label (the owner, 2026-10-06)
+        want = ('<a href="%s" target="_blank" rel="noopener noreferrer" aria-label="%s" title="%s">GitHub</a>'
+                % (PROJECT, PROJECT_LABEL, PROJECT_LABEL))
+        self.assertEqual(author.project_link(project.GITHUB_URL, project.NAME), want)
+        foot = author.foot_links(project.GITHUB_URL, project.NAME)
+        self.assertEqual(foot, want + author.SEP + author.site_link())
+        two = read(foot).links
+        self.assertEqual([(a["href"], a["text"]) for a in two], [(PROJECT, "GitHub"), (SITE, "imbrunoursino.net")])
+        for a in two:
+            self.assertEqual((a["target"], a["rel"]), ("_blank", "noopener noreferrer"))
+            self.assertEqual(a["aria-label"], a["title"])
+        self.assertEqual([a["title"] for a in two], [PROJECT_LABEL, SITE_LABEL])
+        # what a foot SHOWS is what the author line shows: the label names whose address it is, the words do not
+        self.assertEqual("".join(read(foot).text), "GitHub · imbrunoursino.net")
+        self.assertEqual("".join(read(foot).text), "".join(read(author.links()).text))
+        self.assertNotIn(GITHUB, foot)
+        self.assertNotIn(PERSON_LABEL, foot)
+        # the label says the project's name as it was handed it, and still CONTAINS the words the link shows
+        other = read(author.project_link("https://example.test/x", "Thing")).links[0]
+        self.assertEqual((other["href"], other["aria-label"], other["title"]),
+                         ("https://example.test/x", "Thing on GitHub", "Thing on GitHub"))
+        self.assertIn(author.GITHUB_TEXT, other["aria-label"])
+
+    def test_a_foot_s_row_is_the_same_two_links_with_the_dot_an_item_of_its_own(self):
+        row = author.foot_row(project.GITHUB_URL, project.NAME)
+        self.assertEqual(row, author.project_link(project.GITHUB_URL, project.NAME)
+                         + '<span aria-hidden="true">&middot;</span>' + author.site_link())
+        self.assertEqual([a["href"] for a in read(row).links], [PROJECT, SITE])
 
     def test_a_link_fetches_nothing(self):
         # a link is followed when it is clicked: no picture, icon, script, sheet
@@ -133,6 +182,10 @@ class TheModule(unittest.TestCase):
         for tag in ("<img", "<script", "<link", "<iframe", "<svg", "src=", "srcset=", "url(", "@import"):
             self.assertNotIn(tag, author.links())
         self.assertEqual(len(re.findall(r"<a ", author.links())), 2)
+        foot = author.foot_links(project.GITHUB_URL, project.NAME)
+        for tag in ("<img", "<script", "<link", "<iframe", "<svg", "src=", "srcset=", "url(", "@import"):
+            self.assertNotIn(tag, foot)
+        self.assertEqual(len(re.findall(r"<a ", foot)), 2)
 
     def test_what_is_written_into_a_link_is_escaped(self):
         self.assertEqual(author.link('https://x.test/?a=1&b="2"', "<b>", "it's"),
@@ -163,30 +216,35 @@ class TheModule(unittest.TestCase):
         # library and the checkout, which is all a guide exported with
         # `build.py --export` has (engine/vendor/)
         code = ("import sys; sys.path.insert(0, sys.argv[1]); "
-                "import engine.site as s; a = s.author; "
-                "print(a.__file__.replace(chr(92), '/').rsplit('/', 2)[-2:], a.NAME, a.links() == a.github_link() + a.SEP + a.site_link())")
+                "import engine.site as s; a = s.author; p = s.project; "
+                "print(a.__file__.replace(chr(92), '/').rsplit('/', 2)[-2:], p.__file__.replace(chr(92), '/').rsplit('/', 2)[-2:], "
+                "a.NAME, a.links() == a.github_link() + a.SEP + a.site_link(), "
+                "a.foot_links(p.GITHUB_URL, p.NAME) == a.project_link(p.GITHUB_URL, p.NAME) + a.SEP + a.site_link())")
         r = subprocess.run([sys.executable, "-I", "-S", "-c", code, str(ROOT / "html-guide")],
                            capture_output=True, text=True, cwd=str(ROOT))
         self.assertEqual(r.returncode, 0, r.stderr)
-        self.assertEqual(r.stdout.strip(), "['lib', 'author.py'] Bruno Ursino True")
+        self.assertEqual(r.stdout.strip(), "['lib', 'author.py'] ['lib', 'project.py'] Bruno Ursino True True")
 
-    def test_the_guide_lists_it_among_the_modules_it_takes_from_parseh(self):
+    def test_the_guide_lists_it_and_the_address_it_is_handed_among_the_modules_it_takes_from_parseh(self):
         sys.path.insert(0, str(ROOT / "html-guide"))
         from engine import manifest
         self.assertIn("lib/author.py", manifest.MODULE_FILES)
+        self.assertIn("lib/project.py", manifest.MODULE_FILES)
         for rel in manifest.MODULE_FILES:
             self.assertTrue((ROOT / rel).is_file(), rel)
 
 
 class TheFoots(unittest.TestCase):
-    def check_two(self, fragment, where):
+    def check_two(self, fragment, where, first=(PROJECT, PROJECT_LABEL)):
+        """The two links of a place: `first` is (the address, the label) of the GitHub one -- a FOOT's, which is
+        Parseh's repository, unless the place is the author line's, where it is his profile."""
         links = external(fragment)
         self.assertEqual([(a["href"], a["text"]) for a in links],
-                         [(GITHUB, "GitHub"), (SITE, "imbrunoursino.net")], where)
+                         [(first[0], "GitHub"), (SITE, "imbrunoursino.net")], where)
         for a in links:
             self.assertEqual((a["target"], a["rel"]), ("_blank", "noopener noreferrer"), where)
-        self.assertEqual([a["aria-label"] for a in links],
-                         ["Bruno Ursino on GitHub", "imbrunoursino.net, Bruno Ursino's website"], where)
+        self.assertEqual([a["aria-label"] for a in links], [first[1], SITE_LABEL], where)
+        self.assertEqual([a["title"] for a in links], [first[1], SITE_LABEL], where)
         return read(fragment)
 
     def test_the_browser_hub_s_foot_says_the_two_words_and_nothing_of_the_name(self):
@@ -198,7 +256,9 @@ class TheFoots(unittest.TestCase):
         self.assertNotIn("Ursino", shown)
         self.assertTrue(shown.rstrip().endswith("GitHub · imbrunoursino.net"), shown[-80:])
         # the foot's other items stay as they were, and the two links come last
-        self.assertLess(foot.index('<a href="/licences/">licences</a>'), foot.index(author.GITHUB_URL))
+        self.assertLess(foot.index('<a href="/licences/">licences</a>'), foot.index(PROJECT))
+        # and the person's own profile is not what the foot's GitHub leads to
+        self.assertNotIn(GITHUB, browser)
 
     def test_the_mobile_hub_s_last_line_is_the_two_links_and_nothing_else(self):
         _, mobile = hub_html()
@@ -214,7 +274,8 @@ class TheFoots(unittest.TestCase):
         # and not under the class a phone's tests keep the browser's words out of
         self.assertNotIn('class="m-by foot"', mobile)
         # every link the mobile hub has to another site is these two
-        self.assertEqual([a["href"] for a in external(mobile)], [GITHUB, SITE])
+        self.assertEqual([a["href"] for a in external(mobile)], [PROJECT, SITE])
+        self.assertNotIn(GITHUB, mobile)
 
     def test_the_hub_names_him_nowhere_in_words_but_a_screen_reader_reads_it(self):
         browser, mobile = hub_html()
@@ -240,27 +301,32 @@ class TheFoots(unittest.TestCase):
         main = page[page.index('<main class="settings">'):page.index("</main>")]
         self.assertEqual(main.count('<p class="foot">'), 1)
         foot = re.search(r'<p class="foot">(.*?)</p>', main, re.S).group(1)
-        self.assertEqual(foot, author.links())
+        self.assertEqual(foot, author.foot_links(project.GITHUB_URL, project.NAME))
         self.check_two(foot, "settings hub")
         self.assertTrue(main.rstrip().endswith("</p>"), "the foot is the last thing in the page")
-        self.assertEqual(page.count(GITHUB), 1)
+        self.assertEqual(page.count('href="%s"' % PROJECT), 1)
+        self.assertEqual(page.count(GITHUB), 0, "his profile is not at the Settings hub's foot")
         self.assertEqual(page.count(SITE), 1)
         # the foot is the hub's own: the frame every page of Settings is drawn
         # through does not add it (tests/signature.mjs opens the others)
-        self.assertNotIn(GITHUB, settingspage.frame("t", "w", "m", "/guide/", '<main class="settings"></main>'))
+        self.assertNotIn(PROJECT, settingspage.frame("t", "w", "m", "/guide/", '<main class="settings"></main>'))
 
     def test_the_licences_page_names_him_beside_the_author_and_links_both(self):
         import notices
         page = notices.page()
         self.assertIn('<p class="by">Copyright &copy; 2026 Bruno Ursino, the author of Parseh &mdash; %s</p>' % author.links(), page)
         self.assertEqual(len(external(page[page.index("<h2>Parseh</h2>"):page.index("<h2>What it carries</h2>")])), 2)
+        # beside his name as the author, GitHub is HIS profile: "Bruno Ursino on GitHub"
+        line = re.search(r'<p class="by">(.*?)</p>', page, re.S).group(1)
+        self.check_two(line, "licences", first=(GITHUB, PERSON_LABEL))
 
     def test_about_names_the_author_and_links_both_on_its_own_page(self):
         import aboutpage
         page = aboutpage.page('host')
         main = page[page.index('<main class="settings tools">'):page.index('</main>')]
         self.assertIn('<dt>Author</dt><dd><code>' + author.NAME + '</code></dd>', main)
-        self.check_two(main, 'About settings')
+        # his name stands there as the author, so GitHub is HIS profile: "Bruno Ursino on GitHub"
+        self.check_two(main, 'About settings', first=(GITHUB, PERSON_LABEL))
         self.assertEqual(page.count(GITHUB), 1)
         self.assertEqual(page.count(SITE), 1)
 

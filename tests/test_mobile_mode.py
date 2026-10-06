@@ -139,11 +139,12 @@ class HubTests(unittest.TestCase):
 
     def test_the_mobile_layout_has_nothing_that_edits_or_administers(self):
         # (and installing the mobile interface as an app: lib/mobile.py; the
-        # licences: lib/notices.py; and, last, the author's two links, the only
-        # ones that leave Parseh: lib/author.py)
+        # licences: lib/notices.py; and, last, the foot's two links, the only
+        # ones that leave Parseh: lib/author.py -- Parseh's repository and his site)
         import author
+        import project
         self.assertEqual(self.hrefs('mobile'), ['/', '/books/', '/youtube/', '/studio/', '/exercises/', '/guide/',
-                                                '/m/install/', '/licences/', author.GITHUB_URL, author.SITE_URL])
+                                                '/m/install/', '/licences/', project.GITHUB_URL, author.SITE_URL])
         els = self.page.of('mobile')
         buttons = [a.get('data-parseh-mode') or ('theme' if 'data-parseh-theme' in a else a.get('data-pick'))
                    for t, a in els if t == 'button']

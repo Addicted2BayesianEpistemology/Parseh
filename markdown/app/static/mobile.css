@@ -43,8 +43,12 @@ html[data-mode=mobile]{--m-col:560px}
   background:var(--chrome-panel);border-bottom:1px solid var(--chrome-line);
   -webkit-tap-highlight-color:transparent}
 .m-topbar :is(.m-up,.m-theme):active{border-color:var(--accent)}
+/* the name in TeX Gyre Chorus (app.css names the face): 21px of it stand where 16px
+   of the sans stood, as in lib/mobile.css and in no more room, one weight, the line 1
+   so that the 48px target keeps its height */
 .m-topbar .m-home{display:inline-flex;align-items:center;gap:8px;min-height:48px;
-  text-decoration:none;color:var(--chrome-fg);font-weight:600;font-size:16px}
+  text-decoration:none;color:var(--chrome-fg);
+  font-family:"TeX Gyre Chorus","Apple Chancery",cursive;font-weight:400;font-size:21px;line-height:1}
 .m-topbar .m-home .glyph{font-family:"Noto Nastaliq Urdu",var(--fa-font);background:var(--accent);
   color:var(--accent-fg);width:28px;height:28px;border-radius:50%;font-size:16px;line-height:1;
   display:inline-flex;align-items:center;justify-content:center;padding-bottom:6px}

@@ -91,11 +91,11 @@ At the bottom of the hub:
   index — and that **the guide** has the rest;
 - which version of Parseh this is, and that it is free software, with a
   link to its **licences** ([Licences and credits](../reference/licences.md));
-- two links, **GitHub** and **imbrunoursino.net**, to the GitHub account and
-  the website of Bruno Ursino, who made Parseh. They are only links: each
-  opens in a tab of its own when you click it, and nothing is fetched from
-  either address before that, so the foot looks the same with no
-  connection.
+- two links, **GitHub** and **imbrunoursino.net**: the first leads to
+  Parseh's own repository on GitHub, the second to the website of Bruno
+  Ursino, who made Parseh. They are only links: each opens in a tab of its
+  own when you click it, and nothing is fetched from either address before
+  that, so the foot looks the same with no connection.
 
 The mobile hub says the licence and the version on two lines at its very
 foot, the version on the second, and has the two links on a third.

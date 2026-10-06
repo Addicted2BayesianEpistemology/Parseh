@@ -74,6 +74,7 @@ for _sub in ("lib", "markdown/exlex", "markdown/app"):
 
 languages = importlib.import_module("languages")
 author = importlib.import_module("author")
+project = importlib.import_module("project")
 texgen = importlib.import_module("texgen")
 mdparser = importlib.import_module("mdparser")
 htmlgen = importlib.import_module("htmlgen")

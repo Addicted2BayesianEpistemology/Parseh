@@ -58,7 +58,7 @@ from .frontmatter import FrontMatterError, split as split_front_matter
 from .inline import Store
 from .manifest import FONT_LICENCES, RUNTIME_DIR
 from .studio import (GUIDE, author, find_font, htmlgen, inline_seam, languages,
-                     source, texgen)
+                     project, source, texgen)
 
 esc = htmlgen.esc
 ENGINE_VERSION = 1
@@ -774,8 +774,9 @@ class Site:
             "body": body,
             "pager": "".join(pager),
             "source": esc("html-guide/markdown/" + page.rel),
-            # the author's two links, as at the hub's foot (lib/author.py)
-            "made": author.links(),
+            # the foot's two links, as at the hub's foot (lib/author.py): GitHub is
+            # Parseh's own repository (lib/project.py), the other the author's website
+            "made": author.foot_links(project.GITHUB_URL, project.NAME),
             "langjson": json.dumps(L.as_json(), ensure_ascii=False).replace("</", "<\\/"),
             "scripts": "\n".join(scripts),
         }
@@ -813,8 +814,10 @@ class Site:
             found = find_font(name)
             if found:
                 shutil.copyfile(found, run / "fonts" / name)
-        # the published layout's bar sets the name in a face the guide's own
-        # stylesheet does not name (engine/bar.py): only that layout carries it
+        # the published layout's bar names its face in a rule of its own
+        # (engine/bar.py), and so does the studio's sheet since a0.5.0, which the
+        # loop above has copied from: this puts the bar's file in the folder the
+        # bar's rule reaches, whatever the sheet names
         if self.bar_home:
             for name in bar.FONT_FILES:
                 found = find_font(name)

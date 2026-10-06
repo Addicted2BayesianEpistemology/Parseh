@@ -232,12 +232,15 @@ class EverythingSaysIt(unittest.TestCase):
         # and the licence line a test of its own pins is left as it was
         self.assertIn('<p class="m-foot">Free software, GPL 3 or later &middot; '
                       '<a href="/licences/">Licences</a></p>\n', mobile)
-        # and the author's two links come after them, in both layouts (a0.4.1,
-        # lib/author.py): the browser foot's last line, the mobile hub's last
+        # and the foot's two links come after them, in both layouts (a0.4.1,
+        # lib/author.py): the browser foot's last line, the mobile hub's last --
+        # GitHub is PARSEH's repository (the owner, 2026-10-06), not his profile
         import author
-        self.assertIn('<a href="/licences/">licences</a>.<br>\n    %s\n  </div>' % author.links(), foot)
+        import project
+        self.assertIn('<a href="/licences/">licences</a>.<br>\n    %s\n  </div>'
+                      % author.foot_links(project.GITHUB_URL, project.NAME), foot)
         self.assertLess(mobile.index('<p class="m-ver">'), mobile.index('<p class="m-by">'))
-        self.assertIn('<p class="m-by">%s</p>\n' % author.row(), mobile)
+        self.assertIn('<p class="m-by">%s</p>\n' % author.foot_row(project.GITHUB_URL, project.NAME), mobile)
 
     def test_no_source_writes_a_version_into_a_stamp_by_hand(self):
         # "Parseh/1.0" was written in seven places, and each said a number no

@@ -1479,7 +1479,12 @@ class AppTests(unittest.TestCase):
         rec = offline.shell()
         faces = [x['url'] for x in offline.studio_faces()]
         self.assertEqual(rec['later'], faces)
-        self.assertEqual(len(faces), 13, faces)
+        # the thirteen the sheet is set in, and TeX Gyre Chorus (a0.5.0), which sets the name Parseh in the
+        # studio's bar and is picked up with the rest because the directory is what is read: it is there once the
+        # studio has started (server.py copies it with the others), so a tree that has not started it has thirteen
+        chorus = '/studio/static/fonts/texgyrechorus-mediumitalic.otf'
+        self.assertIn(len(faces), (13, 14), faces)
+        self.assertEqual(chorus in faces, len(faces) == 14, faces)
         # OUT of the way in, and it is the studio's own folder that goes --
         # the toolbox's own faces (/lib/fonts/) are part of the way in, since
         # a shelf with no Persian face is not a shelf anybody can read

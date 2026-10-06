@@ -182,6 +182,7 @@ import wavefile            # noqa: E402  waveform.json: one cleaner, one writer,
 import wordtimes           # noqa: E402  held/adopted word-time tape of a transcription
 import version             # noqa: E402  which Parseh this is: VERSION, read once (§16.1)
 import author              # noqa: E402  who made it, and his two links: the hub's foot (lib/author.py)
+import project             # noqa: E402  where Parseh lives: the repository the hub's foot links (lib/project.py)
 
 ANKI = ytpages.ANKI
 
@@ -1307,8 +1308,9 @@ def hub_page():
          in it would wrap on a phone.  The hub is in the phone's offline
          shell, so away from the computer it says the version last fetched. -->
     <p class="m-ver">%(name)s %(version)s</p>
-    <!-- THE AUTHOR'S TWO LINKS (lib/author.py), the last line of the hub, and
-         nothing else in it: each a finger's height, side by side and wrapping
+    <!-- THE FOOT'S TWO LINKS (lib/author.py), the last line of the hub, and
+         nothing else in it: GitHub, which is Parseh's own repository, and the
+         author's website; each a finger's height, side by side and wrapping
          when the screen is too narrow for both.  Its own class, not m-foot:
          the licence line's is pinned as it was. -->
     <p class="m-by">%(mby)s</p>
@@ -1338,8 +1340,10 @@ def hub_page():
        "reach": esc(settingspage.doors_said(network.settings())),
        "dicttags": dict_tags(), "nclips": clip_tags(),
        # who made it: the two links, on the browser foot's last line and,
-       # each a finger's height, under the mobile hub's version
-       "made": author.links(), "mby": author.row()}
+       # each a finger's height, under the mobile hub's version -- GitHub is
+       # Parseh's own repository, the other link his website
+       "made": author.foot_links(project.GITHUB_URL, project.NAME),
+       "mby": author.foot_row(project.GITHUB_URL, project.NAME)}
 
 
 def clip_tags():
