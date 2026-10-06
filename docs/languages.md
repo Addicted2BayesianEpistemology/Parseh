@@ -436,6 +436,75 @@ Fidelity checks (`assemble.py`, `check_batch.py`, `verify_book.py`,
 preamble's `frank_strip` does the same for the same language. `timings.json`
 keys hash the stripped text, as before.
 
+### The passes, and what a page calls them: `name`, `label`, `title`
+
+A reading edition sets the same passage in several **passes**; to the person
+reading, each is a **level**, and a page shows them as buttons. The registry's
+`passes` list holds one entry per pass, in the order the language has them, and
+each says four things:
+
+| field | what it is | who reads it |
+|---|---|---|
+| `key` | `vocal`, `aloud`, `chunks`, `bare`, `alt` — what the pass *is*; the CSS class (`.p1`…), what a button hides and every prefs key are told by it | everything |
+| `name` | the word its button wears: **1 to 12 characters**, no two the same within a language | the pages: the buttons, the panel's rows, the hover mode's tooltip |
+| `label` | its digit, counting the language's own passes (Chinese: 1, 2, 3, 4, 5 — the vertical pass is `.p4` all the same) | the PDF and the checkers only; **a page no longer prints it** |
+| `title` | one line saying what the level shows | printed beside the name, and as the button's own explanation |
+
+The names a language starts with, and what each says (these are the shipped
+rows; `title` is the sentence the panel prints):
+
+| language | levels, by `key` → `name` |
+|---|---|
+| fa | vocal **With vowels** · chunks **Chunks** · bare **Plain** · alt **Nastaliq** |
+| ar | vocal **With vowels** · chunks **Chunks** · bare **Plain** |
+| it, fr, de, tr, en, hi, es | vocal **Sentence** · chunks **Chunks** |
+| ja | vocal **Furigana** · aloud **Kana only** · chunks **Chunks** · bare **Plain** · alt **Vertical** |
+| zh | vocal **Pinyin** · aloud **Pinyin only** · chunks **Chunks** · bare **Plain** · alt **Vertical** |
+
+The titles say the same thing in every language: *vocal* — "the sentence with
+its vowels, to read on its own" (fa, ar) or "the sentence, to read on its own";
+with a reading it stays "with furigana over each word" / "with pinyin over each
+word"; *aloud* — "the reading alone, in kana" / "in pinyin"; *chunks* — "the
+sentence cut into chunks, each with its gloss beside it"; *bare* — "the
+sentence as Persian (Arabic) is ordinarily printed, with no marks" for the two
+that strip marks, "plain, as Japanese (Chinese) is written" for the two that do
+not; *alt* — "the same sentence in nastaliq script", "the sentence in vertical
+columns (tategaki)".
+
+**The name is a default, and a person may change it.** On the book's own page
+a person renames a level, for one language and one pass, and the new name
+**follows them to their other devices** — it is a prefs key, `bk_lvl:<language
+code>:<pass key>` (`bk_lvl:fa:vocal`), kept in `config/prefs.json` with the
+settings that follow a person (`lib/prefs.py`; the whole key must match
+`^bk_lvl:[a-z]{2,3}:[a-z][a-z0-9_]{0,15}$` and the value is at most 12
+characters once trimmed, or the server keeps nothing). An empty name is a value
+too: it means "the registry's name again". Which levels are *shown* stays with
+the device (`bk_no1`…`bk_no5`); only the names travel. The registry is never
+written for this: a rename is one person's word, not the language's.
+
+`lib/languages.py` refuses a pass without a name — Parseh's own rows at import,
+a person's row by leaving the language out with the reason in
+`newlang.py --check` and the server's log — and refuses a name over 12
+characters, with a line break in it, or the same as another pass's of that
+language. One exception, for the sake of languages already added: a row in
+`config/languages.json` written **before** names existed (no pass of it has
+one) is read with the default names `languages.default_level_name` gives, and
+`--check` says so as a note; a row that names some passes and not others is
+simply wrong. `lib/newlang.py` writes a name and a title for every pass it
+scaffolds by that same rule: *vocal* is **Sentence**, **With vowels** where
+marks come off in an Arabic script (**With marks** in another) and the
+reading's own name (**Pinyin**, **Kana**; **Reading** when that is longer than
+12 characters) where the chunks carry words — or what the row's `vocal_label`
+calls it where that says "with <reading>": Japanese's "with furigana" is
+**Furigana**; *aloud* is `<reading> only`;
+*chunks* is **Chunks**, *bare* is **Plain**, a vertical *alt* is **Vertical**
+and a font *alt* takes its `--alt-key` ("nastaliq" → **Nastaliq**) or **Other
+font**.
+
+The *Plain* level of Persian and Arabic is unchanged by all this: it is
+exactly the text as it is ordinarily printed, which is what the registry's
+`strip` (above) takes off, and what its title says.
+
 ### Digits
 
 Labels (`\parnum{۳.۱}`, contents entries) are written in the language's
@@ -979,10 +1048,12 @@ breaks its meanings at another language's points.
 
 Language-aware throughout: `lang`/`dir` attributes and fonts from the registry
 (through `parseh.css`'s per-language tokens, §8); digits; the passes that
-exist (buttons 1–4 appear only for the language's passes, and the number is
-the pass's own label and not its place in the row: pass 4 is the vertical one
-for Japanese and for Chinese alike, `.p4.vert`, with the
-CSS `writing-mode: vertical-rl`); pass 1 of a reading language sets
+exist (a button appears only for each of the language's passes, and it wears the
+pass's **name**, never a digit — the registry's `name`, or the person's own
+word for it, §3 "The passes, and what a page calls them"; what a button
+hides is told by the pass's key and not by its place in the row: the vertical
+pass is the vertical one for Japanese and for Chinese alike, `.p4.vert`, with
+the CSS `writing-mode: vertical-rl`); pass 1 of a reading language sets
 `<ruby>fa<rt>kana</rt></ruby>` per chunk; the gloss gets `<div class="kana">`;
 `words()` splits with `Lang.split_words` (a chunk of an unspaced language is
 one word); the typography panel's first slider is labelled with the language
@@ -1123,7 +1194,8 @@ checkout. Adding a language runs the same move first, so the new row lands in
 a registry whose two halves already say whose is whose.
 
 It derives what it can — the folder, the tag, the babel
-name, the passes, the labels, and the Anki model ids on the
+name, the passes (each with its name, the word its button wears, and its
+one-line title, §3), the labels, and the Anki model ids on the
 `1724563200000 + 10·n + 1/2` grid, checked against every id in both halves:
 the next free pair for `--shipped`, and a free pair drawn from slot 1000 up
 for a language of this machine's (§4) —
@@ -1373,7 +1445,9 @@ the same thing.
     word, the reading alone, the chunks, plain, vertical — and Chinese a bare
     pass, since its pass 1 now carries pinyin to take off. The labels moved;
     the CSS classes, which follow the pass's key and not its label, did not:
-    the vertical pass is still `.p4`, and the reading pass is `.p5`.
+    the vertical pass is still `.p4`, and the reading pass is `.p5`. (Since
+    a0.5.0 a page does not print the digit at all: a button wears the pass's
+    `name`, and the label is left to the PDF and the checkers, §3.)
   - **`translit_label` earns its keep on a proper noun.** Persian and Arabic
     say *transliteration*, the Latin-script rows say *pronunciation*,
     Japanese says *rōmaji*, and Chinese says **pinyin** — the name of a

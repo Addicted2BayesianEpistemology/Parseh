@@ -224,6 +224,9 @@ FORMATS = {
                      "a video's own record of itself, video.json"),
     "parseh-annotations": ("youtube/lib/check_annotations.py", "ANNOTATIONS_FORMAT",
                            "a video's captions and their glosses, annotations.json"),
+    # keys added inside `settings` (a0.5.0: bk_cont, the bk_lvl: level names) do
+    # not change this shape and an older Parseh ignores them: the number stays
+    # (lib/prefs.py says why, beside STORE_FORMAT)
     "parseh-prefs": ("lib/prefs.py", "STORE_FORMAT",
                      "each book's reading place and the settings that follow you "
                      "(config/prefs.json)"),

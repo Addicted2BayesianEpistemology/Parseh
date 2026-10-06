@@ -10,7 +10,9 @@
     L.strip("دَر")                                  # marks off (harakat for fa/ar; identity for ja/it)
     L.to_latin_digits("۳.۱۲") / L.to_native_digits("3.12")
     L.reading                                       # True when the language has a kana-like reading
-    L.passes                                        # the reading editions' passes, in order
+    L.passes                                        # the reading editions' passes, in order: each has a key,
+                                                    # a name (what its button says), a label (its digit, the
+                                                    # PDF's) and a title (one line saying what it shows)
     L.vb_labels                                     # the two labels a \vb gloss prints
     L.vb_forms                                      # what its three forms are, in words
     L.vb_video_bare                                 # a video's \vb line without the marks (ar)
@@ -80,6 +82,124 @@ STORE_COMMENT = ("The languages added on this machine (lib/newlang.py writes "
                  "them), in the shape of lib/languages.json's rows. Parseh's "
                  "own table is read first and wins for a code both hold; an "
                  "update never touches this file.")
+
+
+# THE LEVELS' NAMES (a0.5.0).  A reading edition sets the same passage in
+# several passes, and to the person reading it each is a LEVEL: a button that
+# says what it shows.  The button says it in a NAME -- "With vowels", "Chunks",
+# "Plain" -- and never in a digit, which meant one thing in Persian and another
+# in Chinese (docs/languages.md, "A pass label is an identity") and is not
+# printed on a page any more.  `label`, the digit, stays for what still counts
+# the passes (the PDF's front matter, the checkers); `title` is one line saying
+# what the level shows, printed beside the name.  THE NAME HERE IS THE DEFAULT:
+# a person renames a level on their own pages (the prefs key
+# bk_lvl:<language>:<pass key>, lib/prefs.py), and this is what comes back when
+# they empty the field.
+LEVEL_NAME_MAX = 12     # what a button holds; lib/prefs.py refuses a longer rename too
+
+
+def _reading_word(d):
+    """What the language calls its reading, capitalised, for the names of the
+    levels that show it ("Furigana", "Pinyin") -- or "Reading" where its own
+    word is too long for a button ("Transliteration" is fifteen characters)."""
+    sound = ((d.get("reading_label") or "reading") if d.get("reading")
+             else (d.get("translit_label") or "reading")).strip() or "reading"
+    word = sound[:1].upper() + sound[1:]
+    return word if len(word) <= LEVEL_NAME_MAX else "Reading"
+
+
+def default_level_name(d, p):
+    """The name a pass of the row `d` is given where nobody has chosen one --
+    the one rule lib/newlang.py writes a new language's names by, and the one
+    a row from before the names existed is read by (_with_level_names).
+
+    By the pass's KEY, as everything about a pass is: vocal is the sentence
+    itself, with what helps (the reading over each word where the chunks carry
+    words or the language has a reading -- named as the row's `vocal_label`
+    names it where that says "with <reading>", as Japanese's "with furigana"
+    does -- the vowels where marks come off in a script that writes them as
+    marks, otherwise nothing); aloud is that reading alone; chunks, bare and the
+    alternate face are what they are.  Every name the registry ships is what
+    this gives (tests/test_level_names.py holds the two together)."""
+    key = (p or {}).get("key")
+    word = _reading_word(d)
+    if key == "vocal":
+        if d.get("words") or d.get("reading"):
+            said = (d.get("vocal_label") or "").strip()
+            if said.lower().startswith("with "):
+                own = said[5:].strip()
+                own = own[:1].upper() + own[1:]
+                if 0 < len(own) <= LEVEL_NAME_MAX:
+                    return own
+            return word
+        if d.get("strip"):
+            return "With vowels" if d.get("script") == "arabic" else "With marks"
+        return "Sentence"
+    if key == "aloud":
+        only = word + " only"
+        return only if len(only) <= LEVEL_NAME_MAX else "Reading only"
+    if key == "chunks":
+        return "Chunks"
+    if key == "bare":
+        return "Plain"
+    if key == "alt":
+        if (p or {}).get("kind") == "vertical":
+            return "Vertical"
+        face = ((d.get("fonts") or {}).get("alt_key") or "").strip()
+        if face.isalpha() and face.lower() != "alt" and len(face) <= LEVEL_NAME_MAX:
+            return face.capitalize()
+        return "Other font"
+    return (str(key or "").strip().capitalize() or "Level")[:LEVEL_NAME_MAX]
+
+
+def unnamed_passes(passes):
+    """True when NO pass of this list has a `name` at all: the shape of a row
+    written before the levels had names, which is not the same fault as a row
+    that names some and not others, or names one badly."""
+    return bool(passes) and all(isinstance(p, dict) and "name" not in p for p in passes)
+
+
+def level_name_problems(passes):
+    """What is wrong with the names of a row's passes -> [str], empty when all
+    is well.  Every pass needs one: 1 to LEVEL_NAME_MAX characters, on one line,
+    and no two of a language's passes may share one -- a button shows nothing
+    but its name, so two the same would be two buttons nobody can tell apart."""
+    out, seen = [], {}
+    for p in passes or []:
+        if not isinstance(p, dict):
+            out.append("a pass is %s, not a table" % type(p).__name__)
+            continue
+        key, name = p.get("key"), p.get("name")
+        if not isinstance(name, str) or not name.strip():
+            out.append("pass %r has no \"name\": the word its button wears, 1 to %d "
+                       "characters" % (key, LEVEL_NAME_MAX))
+            continue
+        name = name.strip()
+        if len(name) > LEVEL_NAME_MAX:
+            out.append("pass %r is named %r, which is %d characters: %d is the most a "
+                       "button holds" % (key, name, len(name), LEVEL_NAME_MAX))
+        elif any(unicodedata.category(c) in ("Cc", "Zl", "Zp") for c in name):
+            out.append("pass %r has a name that is not one plain line" % (key,))
+        elif name.casefold() in seen:
+            out.append("passes %r and %r are both named %r: a button shows nothing but "
+                       "its name" % (seen[name.casefold()], key, name))
+        else:
+            seen[name.casefold()] = key
+    return out
+
+
+def _with_level_names(d):
+    """A person's row written before the levels had names, read as the same row
+    with the default ones -- so that updating Parseh does not take away a
+    language somebody added on their own machine, which an older newlang.py
+    wrote without them and which no update may rewrite (config/ is theirs).
+    Only a row that has none AT ALL is mended: one that names some passes and
+    not others, or names one badly, is a row that is wrong, and is left to be
+    refused like any other."""
+    passes = d.get("passes")
+    if not unnamed_passes(passes):
+        return d
+    return dict(d, passes=[dict(p, name=default_level_name(d, p)) for p in passes])
 
 
 class Lang:
@@ -154,7 +274,15 @@ class Lang:
         self.vb_video_bare = bool(d.get("vb_video_bare", False))
         self.fonts = dict(d.get("fonts") or {})
         self.tex = dict(d.get("tex") or {})
+        # EVERY PASS HAS A NAME (see LEVEL_NAME_MAX above): a row without one is
+        # refused here -- Parseh's own at import, as any fault of the release is,
+        # and a person's by _load, which leaves the language out and says why
         self.passes = [dict(p) for p in d.get("passes") or []]
+        bad = level_name_problems(self.passes)
+        if bad:
+            raise ValueError("%s (%s): %s" % (self.name, code, "; ".join(bad)))
+        for p in self.passes:
+            p["name"] = p["name"].strip()
         self.anki = dict(d.get("anki") or {})
         self.duration_units = list(d.get("duration_units") or [])
         self.chapter_words = list(d.get("chapter_words") or [])
@@ -371,7 +499,7 @@ def _load(shipped=None, personal=None):
     for code, d in rows.items():
         if code in mine:
             try:
-                L = Lang(code, d)
+                L = Lang(code, _with_level_names(d))
             except (KeyError, TypeError, ValueError, AttributeError, re.error) as e:
                 problems.append((code, "its row cannot be read (%s: %s), so it is left out"
                                        % (type(e).__name__, e)))

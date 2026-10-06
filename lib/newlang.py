@@ -43,7 +43,12 @@ model ids are the next free pair, the passes follow from what the language
 has (the reading alone after pass 1 where the chunks carry words; a bare
 pass where there are marks to strip or a reading to take off; a last pass
 where there is an alternate face or a vertical setting), and the labels
-follow the script.  It derives nothing it should be told: the direction, the
+follow the script.  Every pass gets the NAME its button will wear on a page
+-- "Sentence", "Chunks", "Pinyin only", at most 12 characters, the same
+rule languages.default_level_name gives an older row -- and a one-line title
+that says what it shows; a person renames a level on their own pages, and
+the name written here is what comes back when they empty the field.  It
+derives nothing it should be told: the direction, the
 script kind, the character ranges, the fonts, whether there is a reading,
 whether the chunks carry words, whether the language is ever set vertically.
 Those are the flags, and getting one wrong is not something a default can
@@ -475,6 +480,12 @@ def refuse(msg):
     raise SystemExit(2)
 
 
+# the titles of the two passes that read the same in every language: the
+# shipped rows (lib/languages.json) say exactly this
+CHUNKS_TITLE = "the sentence cut into chunks, each with its gloss beside it"
+VERTICAL_TITLE = "the sentence in vertical columns (tategaki)"
+
+
 # --------------------------------------------------------------- what to write
 def build_entry(a, reg):
     """The registry row, in the key order the four existing ones use."""
@@ -536,28 +547,46 @@ def build_entry(a, reg):
     # kana where there is one and the transliteration where there is not.
     sound = ((a.reading_label or "reading") if reading
              else (a.translit_label or S["translit_label"]))
-    passes = [{"key": "vocal", "label": "1",
-               "title": a.vocal_label or (("with %s over each word" % sound) if words
-                                          else S["vocal_label"])}]
+    # EVERY PASS CARRIES FOUR THINGS.  Its key, which is what the page and the
+    # PDF tell it by; its NAME, the word a button wears (a level's name, 12
+    # characters at most -- languages.default_level_name picks it from the key
+    # and from what the row says the language has, the one rule an older row
+    # is read by too); its label, the digit the PDF still counts by; and its
+    # title, one line saying what the level shows.
+    row = {"words": words, "reading": reading, "reading_label": a.reading_label,
+           "translit_label": a.translit_label or S["translit_label"],
+           "vocal_label": a.vocal_label or S["vocal_label"],
+           "strip": strip, "script": a.script, "fonts": {"alt_key": alt_key}}
+    passes = []
+
+    def add_pass(key, title, **more):
+        p = {"key": key}
+        p["name"] = languages.default_level_name(row, dict(p, **more))
+        # THE LABEL counts the passes this language actually has.  It used to be
+        # a flat "4", which is right only for a language that also has a bare
+        # pass at 3: Chinese has none, and its reader's buttons read 1, 2, 4.
+        # (What each button HIDES is a separate thing, taken from the pass's
+        # key -- see tex2html.pass_class.)
+        p.update(label=str(len(passes) + 1), title=title, **more)
+        passes.append(p)
+
+    marks = ("vowels" if a.script == "arabic" else "marks")
+    add_pass("vocal", a.vocal_label or (
+        ("with %s over each word" % sound) if words
+        else ("with %s over each chunk" % sound) if reading
+        else ("the sentence with its %s, to read on its own" % marks) if strip
+        else "the sentence, to read on its own"))
     if words:
-        passes.append({"key": "aloud", "label": "2",
-                       "title": "the reading alone, in %s" % sound})
-    passes.append({"key": "chunks", "label": str(len(passes) + 1),
-                   "title": "chunks and glosses"})
+        add_pass("aloud", "the reading alone, in %s" % sound)
+    add_pass("chunks", CHUNKS_TITLE)
     if has_bare:
-        passes.append({"key": "bare", "label": str(len(passes) + 1),
-                       "title": a.bare_label or S["bare_label"] or "bare"})
-    # THE LABEL IS WHAT THE BUTTON SAYS, so it counts the passes this language
-    # actually has.  It used to be a flat "4", which is right only for a
-    # language that also has a bare pass at 3: Chinese has none, and its
-    # reader's buttons read 1, 2, 4.  (What each button HIDES is a separate
-    # thing, taken from the pass's key -- see tex2html.pass_class.)
+        add_pass("bare", a.bare_label or (
+            ("the sentence as %s is ordinarily printed, with no marks" % name) if strip
+            else "plain, as %s is written" % name))
     if vertical:
-        passes.append({"key": "alt", "label": str(len(passes) + 1),
-                       "title": "vertical", "kind": "vertical"})
+        add_pass("alt", VERTICAL_TITLE, kind="vertical")
     elif alt:
-        passes.append({"key": "alt", "label": str(len(passes) + 1),
-                       "title": "in %s" % alt, "kind": "font"})
+        add_pass("alt", "the same sentence in %s" % alt, kind="font")
 
     entry = {
         "name": name, "native": (a.native or name).strip(),
@@ -775,7 +804,9 @@ def render_tex(code, entry):
         "VB_FORM2": entry["vb_forms"][1],
         "VB_FORM3": entry["vb_forms"][2],
         "VB_FORMS": ", ".join('"%s"' % s for s in entry["vb_forms"]),
-        "PASSES": ", ".join(p["title"] for p in entry["passes"]),
+        # the titles, which now run to a clause of their own ("the sentence, to read
+        # on its own"), so they are told apart by a semicolon and not by a comma
+        "PASSES": "; ".join(p["title"] for p in entry["passes"]),
         "NPASSES": {1: "once", 2: "twice", 3: "three times", 4: "four times",
                     5: "five times"}.get(len(entry["passes"]), "%d times" % len(entry["passes"])),
     })
@@ -876,8 +907,10 @@ def show():
     print("      --vb-forms a,b,c --vb-labels x,y  the three forms a \\vb gives and the two")
     print("                                     labels it prints before the second and third")
     print("      --force                        overwrite files that are already there")
-    print("  Everything else is derived: the folder, the tag, the babel name, the passes,")
-    print("  the labels, and the Anki model ids (the next free pair).\n")
+    print("  Everything else is derived: the folder, the tag, the babel name, the passes")
+    print("  (each with the name its button wears, 12 characters at most, and a one-line")
+    print("  title), the labels, and the Anki model ids (the next free pair).  A person")
+    print("  renames a level on their own pages; the name written here is its default.\n")
     print("  The whole process, end to end, is the guide's page \"Adding a language\"")
     print("  (/guide/ in Parseh); the design is docs/languages.md.\n")
     print("The languages there are (%d):\n" % len(langs))
@@ -1021,8 +1054,15 @@ def check(strict=False):
     own_rows = json.loads(text)
     shipped_list = own_rows.get("_shipped")
     # read as lib/languages.py reads them, from the same two files, so a row
-    # it would leave out is found here and not only in a server's log
-    loaded, problems = languages._load(REGISTRY, PERSONAL)
+    # it would leave out is found here and not only in a server's log.  A row of
+    # PARSEH'S OWN that it refuses (a pass without a name, say) is not left out:
+    # it raises, as the server's import would, and the check says what it said
+    try:
+        loaded, problems = languages._load(REGISTRY, PERSONAL)
+    except ValueError as e:
+        print("      MISSING  lib/languages.json: %s" % e)
+        print("\nwhat is missing:\n  %s" % e)
+        return 1
     seen_folders = {}
     # AND THE VALIDATOR KNOWS THE RETIRED ONES TOO.  next_anki_pair refuses to
     # hand them out, but a row written by hand, pasted, or restored off an
@@ -1125,6 +1165,23 @@ def check(strict=False):
                         % ("/".join(map(str, keys)), code, ", ".join(off)))
         else:
             good("passes %s: the registry and the .tex agree" % "/".join(map(str, keys)))
+        # THE LEVELS' NAMES, what each pass's button says on a page.  A row
+        # without them is refused by lib/languages.py -- Parseh's own at import,
+        # a person's when it is loaded -- so here it is a fault.  The exception
+        # is a person's row written before names existed: Parseh names its
+        # passes as it reads it (languages._with_level_names), so that is a
+        # note, with the names it will be read with
+        if code in mine and languages.unnamed_passes(plist):
+            note(code, "its passes have no names (the row was written before they had "
+                       "any): Parseh reads them as %s; put a \"name\" in each pass in "
+                       "config/languages.json to choose your own"
+                       % ", ".join(repr(languages.default_level_name(d, p)) for p in plist))
+        else:
+            why = languages.level_name_problems(plist)
+            for w in why:
+                fault(code, "level names: " + w)
+            if plist and not why:
+                good("level names %s" % " / ".join(p["name"].strip() for p in plist))
         # the three directories
         missing = [p for p in content_dirs(folder or "") if not os.path.isdir(p)]
         if not missing:
@@ -1356,8 +1413,11 @@ def add(a):
     print("      folder %s/   tag %s   dir %s   script %s   digits %s"
           % (folder, entry["tag"], entry["dir"], entry["script"],
              "the language's own" if entry["digits"] != "0123456789" else "Latin"))
-    print("      passes: %s" % ", ".join("%s (%s)" % (p["label"], p["title"])
+    # a pass is told by the name its button will wear; the digit is the PDF's
+    print("      passes: %s" % "; ".join("%s (%s)" % (p["name"], p["title"])
                                          for p in entry["passes"]))
+    print("              (each button wears its name; a person renames a level on their own "
+          "pages, and this is the default)")
     print("      fonts:  main %s, alt %s, bundled %s"
           % (entry["fonts"]["main"] or "(the body roman)", entry["fonts"]["alt"] or "none",
              ", ".join(entry["fonts"]["web_files"]) or "none"))
@@ -1388,7 +1448,7 @@ def add(a):
     print("  1. lib/lang/%s.tex  -- \\FrankHowTo, the \"How to read this\" page: a passage"
           % code)
     print("     comes %s (%s), and the reader is told why."
-          % (times, ", ".join(p["title"] for p in entry["passes"])))
+          % (times, "; ".join(p["title"] for p in entry["passes"])))
     print("     lib/lang/fa.tex is the voice.%s" % todo_note)
     print("  2. docs/lang/%s.md  -- the seven sections, the last a worked Example.  They"
           % code)
@@ -1521,8 +1581,13 @@ def main(argv=None):
     p.add_argument("--hyphen", help="the hyphenation pattern name, for a Latin script")
     p.add_argument("--translit-label", dest="translit_label",
                    help="what the transliteration line is called (rōmaji, pronunciation)")
-    p.add_argument("--vocal-label", dest="vocal_label", help="the name of pass 1")
-    p.add_argument("--bare-label", dest="bare_label", help="the name of pass 3")
+    p.add_argument("--vocal-label", dest="vocal_label",
+                   help="the one-line title of pass 1 (the row's vocal_label); its NAME, "
+                        "the word its button wears, is derived: Sentence, With vowels, "
+                        "or the reading's own name (Pinyin)")
+    p.add_argument("--bare-label", dest="bare_label",
+                   help="the one-line title of the bare pass (the row's bare_label); its "
+                        "name is Plain")
     p.add_argument("--vb-labels", dest="vb_labels",
                    help="comma-separated: the two labels a \\vb gloss prints before its "
                         "second and third forms (impf.,masdar -- default pres.,past)")

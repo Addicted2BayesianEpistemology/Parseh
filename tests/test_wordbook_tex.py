@@ -204,6 +204,12 @@ class Registry(unittest.TestCase):
         self.assertEqual([p["key"] for p in entry["passes"]], languages.get("zh").pass_keys)
         self.assertEqual([p["label"] for p in entry["passes"]], ["1", "2", "3", "4", "5"])
         self.assertEqual(entry["passes"][1]["title"], "the reading alone, in pinyin")
+        # and the names its buttons wear are Chinese's own, by the one rule that names them
+        self.assertEqual([p["name"] for p in entry["passes"]],
+                         [p["name"] for p in languages.get("zh").passes])
+        self.assertEqual([p["title"] for p in entry["passes"]],
+                         [p["title"] for p in languages.get("zh").passes][:3]
+                         + ["plain, as Testish is written", languages.get("zh").passes[4]["title"]])
         tex = newlang.render_tex("qx", entry)
         self.assertIn("\\FrankHasAloudtrue", tex)
         self.assertIn("\\FrankHasBaretrue", tex)
@@ -216,6 +222,8 @@ class Registry(unittest.TestCase):
         entry = json.loads(text[text.index("\n{") + 1:text.index("\n--dry-run")])["qy"]
         self.assertEqual([(p["key"], p["label"]) for p in entry["passes"]],
                          [("vocal", "1"), ("chunks", "2")])
+        self.assertEqual([(p["key"], p["name"]) for p in entry["passes"]],
+                         [("vocal", "Sentence"), ("chunks", "Chunks")])
         self.assertIn("\\FrankHasAloudfalse", newlang.render_tex("qy", entry))
 
     def test_words_refused_for_a_spaced_language(self):
