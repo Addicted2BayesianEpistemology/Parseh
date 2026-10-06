@@ -248,10 +248,11 @@ try {
   await section('mount', want('mount'), async () => {
     console.log('mount) the gear on the five pages, at 1280x800 with a mouse');
     const ctx = await context(DESK, {theme: 'light'});
+    // (with lib/pagezoom.js on every studio page since a0.5.0 the Zoom group stands where the plan says)
     const GROUPS = {
-      doc: ['text', 'exercises', 'page', 'colours', 'interface'], edit: ['text', 'colours', 'editor'],
-      deck: ['text', 'exercises', 'colours', 'interface'], study: ['text', 'exercises', 'colours', 'interface'],
-      cram: ['text', 'exercises', 'colours', 'interface']};
+      doc: ['text', 'exercises', 'page', 'zoom', 'colours', 'interface'], edit: ['text', 'zoom', 'colours', 'editor'],
+      deck: ['text', 'exercises', 'zoom', 'colours', 'interface'], study: ['text', 'exercises', 'zoom', 'colours', 'interface'],
+      cram: ['text', 'exercises', 'zoom', 'colours', 'interface']};
     const TEXT_DOC = ['fa', 'base', 'width', 'lead', 'voce', 'justify', 'reset'], TEXT_DECK = ['fa', 'base', 'lead', 'justify'];
     for (const kind of KINDS) {
       const page = await open(ctx, kind);
@@ -270,7 +271,7 @@ try {
       const th = await page.locator('.topbar [data-parseh-theme]').count();
       assert(th === 1 && (await page.locator('.topbar [data-parseh-theme]').isVisible()), `${kind}: the browser bar has a ◐`);
       await openGear(page);
-      eq(await groupsOf(page), GROUPS[kind], `${kind}: the groups, in the plan's order (no Zoom without the zoom module)`);
+      eq(await groupsOf(page), GROUPS[kind], `${kind}: the groups, in the plan's order (Zoom included: the zoom module is on every studio page)`);
       if (kind === 'doc' || kind === 'edit') eq(await rowsOf(page, 'text'), TEXT_DOC, `${kind}: Text holds the five type rows, "justify" and the reset`);
       else eq(await rowsOf(page, 'text'), TEXT_DECK, `${kind}: Text holds four rows, no width and no headword size, and no reset`);
       if (kind === 'doc' || kind === 'deck' || kind === 'study' || kind === 'cram')
@@ -593,7 +594,7 @@ try {
     eq(await pe.evaluate(() => [document.querySelector('[data-parseh-gear]').parentElement.className, ParsehGear.mounted().isOpen()]), ['bar-tail', false],
        'on a device set to the mobile mode the editor, which has no phone layout, still has its gear in its bar');
     await openGear(pe);
-    eq(await groupsOf(pe), ['text', 'colours', 'editor'], 'with the same groups, and no Interface');
+    eq(await groupsOf(pe), ['text', 'zoom', 'colours', 'editor'], 'with the same groups, and no Interface');
     // and there (a sheet: not shut by a tap on the page above it) the row follows the page's own button AT ONCE
     await pe.evaluate(() => ParsehGear.mounted().open('editor'));
     const before = await switchOn(pe, 'editor', 'dir');

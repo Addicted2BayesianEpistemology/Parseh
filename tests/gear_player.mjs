@@ -456,7 +456,8 @@ async function partC() {
   // -- pause while a gloss is open: the video waits while a phrase's cloud is open and goes on after it
   await flip(page, 'watching', 'hoverpause');
   eq((await state()).hover, [true, '1'], 'pause while a gloss is open: the page\'s own button is on and the key is kept');
-  await openGear(page);
+  // (a switch no longer shuts the popover as it is pressed, and it covers the transcript: shut it to reach a phrase)
+  await shutGear(page);
   await page.evaluate(() => { __yt.calls.length = 0; document.querySelector('#segs .seg[data-i="1"] .lab').click(); });
   await sleep(300);
   await page.hover('#segs .seg[data-i="1"] .w[data-j="0"]');
