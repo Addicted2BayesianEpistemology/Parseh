@@ -495,6 +495,10 @@ STATIC_FILES = {"/lib/lmlikelihoodsettings.js", "/lib/llmsettings.js", "/youtube
                 # the reading place and the settings that follow a person
                 # (lib/prefs.js, its store lib/prefs.py, TO-DO §4.9)
                 "/lib/prefs.js",
+                # the page zoom, in place before any other script of a page:
+                # parseh.js writes its tag, and the studio's templates carry one
+                # (lib/pagezoom.js, a0.5.0)
+                "/lib/pagezoom.js",
                 # keeping a thing on the phone, and saying when the computer
                 # cannot be reached (lib/keep.js, TO-DO §19.2, §19.5)
                 "/lib/keep.js",
