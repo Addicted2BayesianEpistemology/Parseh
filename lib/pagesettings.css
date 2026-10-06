@@ -1,0 +1,283 @@
+/* SPDX-License-Identifier: GPL-3.0-or-later */
+/* Parseh — the gear's button and panel (lib/pagesettings.js draws them; the
+   script links this file from beside itself, so a page needs one tag).
+
+   WRITTEN IN THE TOKENS OF WHICHEVER SHEET IS IN FORCE, as lib/explain.js is:
+   the toolbox's --card --bg --ink --dim --rule --accent (lib/parseh.css), the
+   studio's --chrome-panel --chrome-bg --chrome-fg --chrome-mut --chrome-line
+   behind them, and a plain colour behind both.  Every colour of this file is
+   in the one block below, so the three palettes -- light, dark and the sepia
+   paper -- carry over with nothing written here for any of them, and so does
+   a page that has neither sheet.
+
+   NO VIEWPORT UNITS.  A page zoomed by lib/pagezoom.js has its viewport units
+   taken apart and put back, which a rule written in them would be fighting:
+   the sheet's height is made of --pg-vh, one percent of the window's height in
+   the page's own pixels, which the script sets from the root's clientHeight,
+   and every width is a percentage or a number.
+
+   THE CHROME IS ENGLISH AND LEFT TO RIGHT, in a Persian page as in an Italian
+   one (the script says dir=ltr and lang=en on the panel); only a level's name
+   field takes the direction of what is typed in it.
+
+   THE MOBILE CONTRACT (docs/mobile.md): a finger's target is 48px.  The sheet
+   is the phone's, and every control in it is 48px high; the button is 48px on
+   a phone, in the mobile layout and wherever the pointer is a finger. */
+
+/* ---------------------------------------------------------------- tokens */
+.pg-gear,.pg-panel{
+  --pg-bg:var(--card,var(--chrome-panel,#ffffff));       /* the panel's ground */
+  --pg-ground:var(--bg,var(--chrome-bg,#f3eff1));        /* what fields and chips rest on */
+  --pg-btn:var(--bg,var(--chrome-panel,#ffffff));        /* the face of a bar's own buttons */
+  --pg-ink:var(--ink,var(--chrome-fg,#241e21));
+  --pg-dim:var(--dim,var(--chrome-mut,#635358));
+  --pg-rule:var(--rule,var(--chrome-line,#e3d9dd));
+  --pg-accent:var(--accent,#be3455);
+  --pg-accent-fg:var(--accent-fg,#ffffff);
+  --pg-sub:var(--pg-dim);          /* the sentence under a name */
+  --pg-edge:var(--pg-dim);         /* the outline of a control */
+}
+/* A SENTENCE IN --dim IS NOT ALWAYS READABLE: the studio's sepia --chrome-mut
+   is 4.4:1 on its paper, a hair under what a small line asks for.  So where a
+   browser can mix colours the sentence is --dim drawn a fifth of the way
+   toward the ink, which is darker on the light palettes and lighter on the
+   dark one, and the outline of a control is --dim thinned a little toward its
+   ground: 3:1 or better in all three palettes (measured, tests/page_gear.mjs),
+   which is what the edge of a control is asked for. */
+@supports (color:color-mix(in srgb,red,blue)){
+  .pg-gear,.pg-panel{
+    --pg-sub:color-mix(in srgb,var(--pg-dim) 78%,var(--pg-ink));
+    --pg-edge:color-mix(in srgb,var(--pg-dim) 82%,var(--pg-bg));
+  }
+}
+
+/* ------------------------------------------------------------ the button */
+/* The same face as the bar's own buttons (a reader's header, the studio's
+   topbar): the gear is one of them. */
+.pg-gear{display:inline-flex;align-items:center;justify-content:center;gap:5px;box-sizing:border-box;
+  margin:0;padding:5px 9px;font:inherit;font-size:13px;line-height:1.3;white-space:nowrap;
+  color:var(--pg-ink);background:var(--pg-btn);border:1px solid var(--pg-rule);border-radius:6px;
+  cursor:pointer;text-decoration:none;-webkit-tap-highlight-color:transparent}
+.pg-gear:hover{border-color:var(--pg-accent);color:var(--pg-accent)}
+.pg-gear[aria-expanded=true],.pg-gear[aria-expanded=true]:hover{background:var(--pg-accent);
+  border-color:var(--pg-accent);color:var(--pg-accent-fg)}
+.pg-gear:focus-visible{outline:2px solid var(--pg-accent);outline-offset:2px}
+.pg-gear-glyph{font-size:1.2em;line-height:1;
+  font-family:"Segoe UI Symbol","Noto Sans Symbols 2","DejaVu Sans",system-ui,sans-serif;
+  font-variant-emoji:text}
+/* ⚙ ALONE where there is no room for a word: the mobile layout, and any window
+   under 600px; the button keeps its name for a screen reader (aria-label) */
+html[data-mode=mobile] .pg-gear-word,.pg-gear.pg-mobile .pg-gear-word{display:none}
+@media (max-width:599px){.pg-gear-word{display:none}}
+/* A FINGER'S TARGET: the mobile layout, a window as narrow as a phone's, and
+   any screen whose pointer is a finger */
+html[data-mode=mobile] .pg-gear,.pg-gear.pg-mobile,.pg-gear.pg-phone{min-width:48px;min-height:48px;
+  padding:0 12px;font-size:15px}
+@media (max-width:560px){.pg-gear{min-width:48px;min-height:48px;padding:0 12px;font-size:15px}}
+@media (pointer:coarse){.pg-gear{min-width:48px;min-height:48px}}
+
+/* ------------------------------------------------------------- the panel */
+.pg-panel{position:fixed;z-index:120;top:0;left:0;display:flex;flex-direction:column;box-sizing:border-box;
+  width:380px;margin:0;padding:0;overflow:hidden;
+  background:var(--pg-bg);color:var(--pg-ink);border:1px solid var(--pg-rule);border-radius:12px;
+  box-shadow:0 12px 36px rgba(0,0,0,.28);
+  font:14px/1.45 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,system-ui,sans-serif;
+  font-style:normal;font-weight:400;letter-spacing:normal;text-transform:none;text-align:left;
+  direction:ltr;outline:none;-webkit-text-size-adjust:100%}
+.pg-panel[hidden],.pg-panel [hidden]{display:none!important}
+.pg-panel *,.pg-panel *::before,.pg-panel *::after{box-sizing:border-box}
+.pg-panel:focus{outline:none}
+/* the native controls follow the palette: the picker's list, the scrollbar */
+:root[data-theme=dark] .pg-panel,body[data-theme=dark] .pg-panel{color-scheme:dark}
+:root[data-theme=light] .pg-panel,:root[data-theme=sepia] .pg-panel,
+body[data-theme=light] .pg-panel,body[data-theme=sepia] .pg-panel{color-scheme:light}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme=light]):not([data-theme=sepia]) .pg-panel{color-scheme:dark}
+}
+
+/* THE SHEET, the phone's: ONE sheet from the foot of the screen, half of it
+   (a short window -- a phone held sideways -- gets a floor of 240px), and the
+   page stays above it, visible and usable, so a change shows at once.  Not
+   modal: nothing dims, nothing is locked, a swipe down on its head, ✕, Esc
+   and the back gesture close it. */
+.pg-panel.pg-sheet{top:auto;left:0;right:0;bottom:0;margin:0 auto;width:min(560px,100%);
+  height:max(240px,calc(var(--pg-vh,8px) * 55));max-height:calc(var(--pg-vh,8px) * 100 - 48px);
+  border-width:1px 1px 0;border-radius:16px 16px 0 0;box-shadow:0 -6px 28px rgba(0,0,0,.22);
+  animation:pg-rise .16s ease-out}
+.pg-panel.pg-sheet:not(.pg-drag){transition:transform .16s ease-out}
+@keyframes pg-rise{from{transform:translateY(28px);opacity:.5}to{transform:none;opacity:1}}
+
+/* the head: the grab line (the sheet's), the title, ✕ */
+.pg-panel .pg-head{position:relative;flex:0 0 auto;display:flex;align-items:center;gap:8px;
+  min-height:48px;padding:6px 6px 6px 16px;border-bottom:1px solid var(--pg-rule);background:var(--pg-bg)}
+.pg-panel .pg-grip{display:none}
+.pg-sheet .pg-grip{display:block;position:absolute;top:7px;left:50%;width:40px;height:4px;margin-left:-20px;
+  border-radius:2px;background:var(--pg-edge)}
+.pg-sheet .pg-head{padding-top:14px;touch-action:none;cursor:grab}
+.pg-panel .pg-title{flex:1 1 auto;min-width:0;margin:0;font-size:15.5px;font-weight:600;line-height:1.3;
+  color:var(--pg-ink)}
+.pg-panel .pg-x{flex:0 0 auto;width:36px;height:36px;margin:0;padding:0;font:inherit;font-size:16px;
+  line-height:1;color:var(--pg-sub);background:transparent;border:1px solid transparent;border-radius:9px;
+  cursor:pointer;-webkit-tap-highlight-color:transparent}
+.pg-panel .pg-x:hover{color:var(--pg-accent);border-color:var(--pg-rule)}
+.pg-sheet .pg-x{width:48px;height:48px;font-size:19px}
+
+/* the one thing that scrolls */
+.pg-panel .pg-body{flex:1 1 auto;min-height:0;overflow-x:hidden;overflow-y:auto;
+  overscroll-behavior:contain;-webkit-overflow-scrolling:touch;padding:2px 16px 14px}
+.pg-sheet .pg-body{padding-bottom:calc(14px + env(safe-area-inset-bottom))}
+.pg-panel .pg-first{margin:10px 0 0;font-size:13px;line-height:1.4;color:var(--pg-sub)}
+
+/* a group: its name, where its settings are kept, its rows */
+.pg-panel .pg-group{margin:18px 0 0;padding:0}
+.pg-panel .pg-gtitle{margin:0;font-size:15px;font-weight:600;line-height:1.3;color:var(--pg-ink)}
+.pg-panel .pg-caption{margin:2px 0 6px;font-size:12.5px;line-height:1.4;color:var(--pg-sub)}
+
+/* a row: a name, ONE sentence, the control.  A switch has its control at the
+   right of the words; every other kind has it under them. */
+.pg-panel .pg-row{display:grid;grid-template-columns:minmax(0,1fr) auto;column-gap:12px;row-gap:6px;
+  align-items:center;margin:0;padding:10px 0;border-top:1px solid var(--pg-rule)}
+.pg-panel .pg-row>*{grid-column:1 / -1;min-width:0}
+.pg-panel .pg-row[data-pg-kind=switch]>.pg-text{grid-column:1;grid-row:1;cursor:pointer}
+.pg-panel .pg-row[data-pg-kind=switch]>.pg-switch{grid-column:2;grid-row:1}
+.pg-panel .pg-name{font-size:14.5px;font-weight:500;line-height:1.35;color:var(--pg-ink);overflow-wrap:anywhere}
+.pg-panel .pg-help{margin:2px 0 0;font-size:13px;line-height:1.4;color:var(--pg-sub);overflow-wrap:anywhere}
+/* where THIS row is kept, said only where its group's caption cannot say it for all of them */
+.pg-panel .pg-kept{display:inline-block;margin-left:8px;padding:0 7px;font-size:11px;font-weight:500;
+  line-height:1.6;white-space:nowrap;vertical-align:1px;color:var(--pg-sub);
+  border:1px solid var(--pg-rule);border-radius:99px}
+/* why a control is at rest: printed, not left to a tooltip */
+.pg-panel .pg-why{margin:0;padding:6px 10px;font-size:12.5px;line-height:1.4;color:var(--pg-ink);
+  background:var(--pg-ground);border-left:3px solid var(--pg-accent);border-radius:4px;overflow-wrap:anywhere}
+.pg-panel .pg-noterow{padding:6px 0;border-top:0}
+.pg-panel .pg-note{margin:0;font-size:13px;line-height:1.45;color:var(--pg-sub);overflow-wrap:anywhere}
+/* a row at rest: its control dimmed, its words as readable as ever */
+.pg-panel .pg-row.pg-off>:is(.pg-switch,.pg-choice,.pg-slide,.pg-step,.pg-levels,.pg-chips,.pg-action,.pg-node){opacity:.5}
+.pg-panel :disabled{cursor:not-allowed}
+/* a control at rest ON ITS OWN (the way back at 100 %, a step at the end of its list) is dimmed too; where the
+   whole row, or the whole level, is at rest the dimming is done there, once */
+.pg-panel .pg-row:not(.pg-off) :is(.pg-btn,.pg-chip,.pg-select,.pg-lvname,.pg-range,.pg-lvcheck input):disabled:not(.pg-lv.pg-off *){opacity:.5}
+/* a row that hangs under the one above it (indent): the dictionary, its definitions, their translation */
+.pg-panel .pg-row[data-pg-indent]{margin-left:calc(var(--pg-in,1) * 16px);padding-top:4px;padding-left:12px;
+  border-top:0;border-left:2px solid var(--pg-rule)}
+/* a node: another layer's own control, brought in to stand in its row */
+.pg-panel .pg-node{display:block;min-width:0}
+.pg-panel .pg-node>*{max-width:100%}
+
+/* ------------------------------------------------------------- the kinds */
+/* a switch: a track and a knob, 46px by 26px, in a target of its own */
+.pg-panel .pg-switch{flex:none;display:inline-flex;align-items:center;justify-content:center;
+  width:56px;height:44px;margin:0;padding:0;font:inherit;color:inherit;background:transparent;border:0;
+  cursor:pointer;-webkit-tap-highlight-color:transparent}
+.pg-panel .pg-track{position:relative;display:block;width:46px;height:26px;border:2px solid var(--pg-edge);
+  border-radius:14px;background:transparent;transition:background-color .12s,border-color .12s}
+.pg-panel .pg-knob{position:absolute;top:2px;left:2px;width:18px;height:18px;border-radius:50%;
+  background:var(--pg-edge);transition:transform .12s,background-color .12s}
+.pg-panel .pg-switch[aria-checked=true] .pg-track{background:var(--pg-accent);border-color:var(--pg-accent)}
+.pg-panel .pg-switch[aria-checked=true] .pg-knob{background:var(--pg-accent-fg);transform:translateX(20px)}
+
+/* a choice: chips that wrap, or a picker */
+.pg-panel .pg-chips{display:flex;flex-wrap:wrap;gap:6px}
+.pg-panel .pg-chip{flex:1 1 auto;min-width:0;min-height:40px;margin:0;padding:6px 12px;font:inherit;
+  font-size:13.5px;line-height:1.25;text-align:center;overflow-wrap:anywhere;color:var(--pg-ink);
+  background:var(--pg-ground);border:1px solid var(--pg-edge);border-radius:9px;cursor:pointer;
+  -webkit-tap-highlight-color:transparent}
+.pg-panel .pg-chip:hover:not(:disabled){border-color:var(--pg-accent);color:var(--pg-accent)}
+.pg-panel .pg-chip[aria-checked=true],.pg-panel .pg-chip[aria-pressed=true],
+.pg-panel .pg-chip[aria-checked=true]:hover:not(:disabled),.pg-panel .pg-chip[aria-pressed=true]:hover:not(:disabled){
+  background:var(--pg-accent);border-color:var(--pg-accent);color:var(--pg-accent-fg)}
+.pg-panel .pg-opthelp{margin:6px 0 0;font-size:12.5px;line-height:1.4;color:var(--pg-sub)}
+.pg-panel .pg-opthelp:empty{display:none}
+.pg-panel .pg-select{display:block;width:100%;min-height:40px;margin:0;padding:6px 10px;font:inherit;
+  font-size:14px;color:var(--pg-ink);background-color:var(--pg-ground);border:1px solid var(--pg-edge);
+  border-radius:9px}
+
+/* a slider, with what it says beside it */
+.pg-panel .pg-slide{display:grid;grid-template-columns:minmax(0,1fr) 4.6em;align-items:center;column-gap:10px}
+.pg-panel .pg-range{width:100%;min-width:0;height:36px;margin:0;padding:0;background:transparent;
+  accent-color:var(--pg-accent)}
+.pg-panel .pg-out{text-align:right;white-space:nowrap;font-size:13px;font-variant-numeric:tabular-nums;
+  font-family:ui-monospace,Menlo,Consolas,monospace;color:var(--pg-ink)}
+
+/* a stepper: [−] 100 % [+], and the way back */
+.pg-panel .pg-step{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+.pg-panel .pg-btn{margin:0;min-height:40px;padding:6px 14px;font:inherit;font-size:13.5px;line-height:1.25;
+  color:var(--pg-ink);background:var(--pg-ground);border:1px solid var(--pg-edge);border-radius:9px;
+  cursor:pointer;-webkit-tap-highlight-color:transparent}
+.pg-panel .pg-btn:hover:not(:disabled){border-color:var(--pg-accent);color:var(--pg-accent)}
+.pg-panel .pg-stepbtn{min-width:44px;padding:6px 10px;font-size:20px;line-height:1}
+.pg-panel .pg-stepval{min-width:4.2em;text-align:center;font-size:15px;font-weight:600;
+  font-variant-numeric:tabular-nums;color:var(--pg-ink)}
+.pg-panel .pg-stepreset{margin-left:auto}
+.pg-panel .pg-action{justify-self:start;max-width:100%;text-align:left;overflow-wrap:anywhere}
+
+/* the levels: a tick, a name that is the person's to change, and what the level is */
+.pg-panel .pg-levels{display:flex;flex-direction:column;gap:2px}
+.pg-panel .pg-lv{display:grid;grid-template-columns:48px minmax(0,1fr);column-gap:4px;align-items:center;
+  padding:2px 0}
+.pg-panel .pg-lv.pg-off{opacity:.5}
+.pg-panel .pg-lvcheck{display:flex;align-items:center;justify-content:center;width:48px;height:44px;
+  margin:0;cursor:pointer}
+.pg-panel .pg-lvcheck input{width:22px;height:22px;margin:0;accent-color:var(--pg-accent)}
+.pg-panel .pg-lvname{display:block;width:100%;min-width:0;min-height:40px;margin:0;padding:6px 10px;
+  font:inherit;font-size:14.5px;text-align:start;color:var(--pg-ink);background:var(--pg-ground);
+  border:1px solid var(--pg-edge);border-radius:9px}
+.pg-panel .pg-lvname::placeholder{color:var(--pg-sub);opacity:1}
+.pg-panel .pg-lvlabel{min-width:0;font-size:14.5px;line-height:1.35;color:var(--pg-ink);overflow-wrap:anywhere}
+.pg-panel .pg-lvhelp{grid-column:2;margin:0 0 6px;font-size:12.5px;line-height:1.4;color:var(--pg-sub);
+  overflow-wrap:anywhere}
+.pg-panel .pg-lvhelp:empty{display:none}
+
+/* a link, and the foot's.  The control is its own name, so the sentence under it is kept close to it. */
+.pg-panel .pg-row:is([data-pg-kind=link],[data-pg-kind=action]){row-gap:0}
+.pg-panel .pg-row:is([data-pg-kind=link],[data-pg-kind=action])>.pg-text .pg-help{margin-top:0}
+.pg-panel .pg-link,.pg-panel .pg-footlink{display:inline-flex;align-items:center;min-height:40px;margin:0;
+  padding:0;font:inherit;font-size:14.5px;font-weight:500;line-height:1.35;text-align:left;
+  color:var(--pg-accent);background:none;border:0;text-decoration:underline;text-underline-offset:3px;
+  cursor:pointer;overflow-wrap:anywhere}
+.pg-panel .pg-footlink{font-size:13.5px;font-weight:400}
+.pg-panel .pg-foot{margin:18px 0 0;padding:10px 0 0;border-top:1px solid var(--pg-rule)}
+
+/* the keyboard's place is always seen: round the oval of a switch and the box of a slider, not their frames */
+.pg-panel :is(button,a,input,select):focus-visible{outline:2px solid var(--pg-accent);outline-offset:2px}
+.pg-panel .pg-range:focus-visible{outline-offset:0;border-radius:10px}
+.pg-panel .pg-switch:focus-visible{outline:none}
+.pg-panel .pg-switch:focus-visible .pg-track{outline:2px solid var(--pg-accent);outline-offset:3px}
+
+/* -------------------------------------------------- a finger's sizes */
+/* in the sheet, and wherever the pointer is a finger: no row, no control under 48px */
+.pg-sheet .pg-row{padding:12px 0;min-height:48px}
+.pg-sheet .pg-name{font-size:15px}
+.pg-sheet .pg-help{font-size:13.5px}
+.pg-sheet .pg-switch{width:60px;height:48px}
+.pg-sheet :is(.pg-chip,.pg-btn,.pg-select,.pg-lvname){min-height:48px}
+/* a text box or a picker under 16px makes an iPhone zoom the page in when it is touched */
+.pg-sheet :is(.pg-select,.pg-lvname){font-size:16px}
+.pg-sheet .pg-range{height:48px}
+.pg-sheet .pg-lvcheck{height:48px}
+.pg-sheet :is(.pg-link,.pg-footlink){min-height:48px}
+@media (pointer:coarse){
+  .pg-panel .pg-switch{height:48px}
+  .pg-panel :is(.pg-select,.pg-lvname){font-size:16px}
+  .pg-panel :is(.pg-chip,.pg-btn,.pg-select,.pg-lvname){min-height:48px}
+  .pg-panel .pg-range{height:48px}
+  .pg-panel .pg-lvcheck{height:48px}
+  .pg-panel :is(.pg-link,.pg-footlink){min-height:48px}
+  .pg-panel .pg-x{width:48px;height:48px}
+}
+
+/* ------------------------------------- motion, high contrast, and paper */
+@media (prefers-reduced-motion:reduce){
+  .pg-panel,.pg-panel *,.pg-gear{animation:none!important;transition:none!important}
+}
+/* where the person has asked for the system's own colours, what says ON -- a fill -- is drawn in the one
+   the system keeps for it, since a background of ours would be dropped and a switch would look the same
+   both ways */
+@media (forced-colors:active){
+  .pg-gear[aria-expanded=true],.pg-panel .pg-chip[aria-checked=true],.pg-panel .pg-chip[aria-pressed=true]{
+    forced-color-adjust:none;background:Highlight;color:HighlightText;border-color:Highlight}
+  .pg-panel .pg-switch[aria-checked=true] .pg-track{forced-color-adjust:none;background:Highlight;border-color:Highlight}
+  .pg-panel .pg-knob{forced-color-adjust:none;background:ButtonText}
+  .pg-panel .pg-switch[aria-checked=true] .pg-knob{background:HighlightText}
+}
+@media print{.pg-gear,.pg-panel{display:none!important}}
