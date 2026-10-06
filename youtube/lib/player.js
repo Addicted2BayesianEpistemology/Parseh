@@ -923,7 +923,8 @@
          '+ card</button><button type="button" class="mkcopy" ' +
          'title="copy this phrase">&#10697; copy</button>' + dictAsk +
          '<button type="button" class="mkedit" ' +
-         'title="write this phrase: its text and its gloss">&#9998; edit</button></div>';
+         'title="write this phrase: its text and its gloss">&#9998; edit</button>' +
+         laterButton(ch) + '</div>';
     cloud.innerHTML = h + colourRow(ch);
     // "I know this" a word at a time for a chunk its line draws -- asked of
     // renderWords, into a span nobody sees, so a line gone stale is offered
@@ -2894,6 +2895,8 @@
       if (window.Parseh) Parseh.copy(cloudCtx.ch.fa);
       return;
     }
+    // REVIEW LATER: the cloud stays as it is, its button saying the new state
+    if (t.classList.contains('mklater')) { laterToggle(cloudCtx.sg, cloudCtx.ch); return; }
     if (t.classList.contains('mkdict')) { dictOnDemand(t); return; }
     if (t.classList.contains('mkcard')) {
       var c = cloudCtx;                 // closeCloud() clears cloudCtx
@@ -3651,6 +3654,7 @@
     measure();
     markGlossed();
     pnPaint();
+    laterPaint();
   }
   /* ONE CAPTION'S LINE, whole: its time, its phrases, and every listener the
      line and its phrases carry.  A function of its own because two things
@@ -3773,6 +3777,7 @@
     els[i] = d;
     markGlossed();
     pnPaint();
+    laterPaint();
   }
 
   // shift-click copies: the phrase under the cursor (the hoverable unit),
@@ -4569,6 +4574,7 @@
   function closeAnki() {
     ankiOpen = false; A.back.hidden = true; A.box.hidden = true;
     clearTimeout(closeTimer);
+    laterSheetShut();
     // a clip nobody used, and a frame sent to the tray for a preview and
     // never saved with a card, go out of the tray
     dropClip(true);
@@ -5074,11 +5080,12 @@
   // been closed since or opened again for another word, in a toast over the
   // page, the only place left to say it.
   function press(clip, frame) {
-    var seq = sheetSeq, over = false;
+    var seq = sheetSeq, over = false, target = ankiTarget;
     var here = function () { return ankiOpen && seq === sheetSeq; };
     if (clip) trayOut[clip.name] = (trayOut[clip.name] || 0) + 1;
     if (frame) frame.held++;
     busyFor = seq;
+    laterCopied = false;
     return {
       here: here,
       // progress, for the sheet that asked only
@@ -5120,6 +5127,8 @@
           if (name && ok && md != null && md.indexOf('images/' + name) >= 0) trayUsed[name] = true;
           else if (name && ankiFrame !== frame && !frame.held) forgetTray(name);
         }
+        // REVIEW LATER hears how it ended: a card saved on any of the three targets
+        laterPressDone(seq, target, ok);
       },
       // the sheet closes itself a moment after a save, so the answer can be
       // read -- unless it is another sheet by then, or somebody is still at
@@ -5242,6 +5251,8 @@
       md = r.md; frame = r.frame;
       return KIT.copy(md);
     }).then(function (ok) {
+      // (review later: a card copied is a card saved, one left to copy by hand is not)
+      laterCopied = ok === true;
       // what the markdown names in the tray, which comes along when pasted
       var media = carried(md, 'the', snap.clip, frame), gone = leftOut(md, snap.clip, frame);
       if (ok) {
@@ -7046,7 +7057,309 @@
       f.addEventListener(n, saidState);
     });
   }
+
+  /* ---- REVIEW LATER (a0.5.0) ----
+     Flag a phrase while watching and go on; come back to the list later, to go to
+     a phrase, make its card, test oneself or copy the list.  The flags are the
+     PERSON's, kept by the toolbox (lib/later.js, lib/later.py) -- never written
+     into the video -- and this is the video's side of them, which lives HERE, in
+     the script, because the phrases (segs), the card sheet (openAnki, press) and
+     the player's seek are private to it, and because the page is written by the
+     server with this very script, so there is no older page to reach:
+       - THE FOUR WAYS TO FLAG: the cloud's button «review later» (it reads «✓ marked»
+         once set, and a second press takes the flag off); the L key, on the phrase the
+         open cloud is for, else the phrase under the pointer, else a word saying to
+         point at one first; and a held finger (lib/wordtouch.js asks
+         window.ParsehLaterMark).  There is no pencil here to put a ⚑ beside.
+       - THE LOOK: a dotted line in the accent under a flagged phrase (.later-mark,
+         lib/later.css), in the transcript and in the subtitles copied over the picture.
+       - THE DOOR, «⚑ later 3», in the header after the title; on a phone on the first
+         line once something is flagged (lib/mobile.css).
+       - A PHRASE IS FOUND BY WHAT IT IS: the caption by its start, the phrase in it by
+         its place and its text; a caption whose start was moved (the timings sheet) by
+         its own text.  The rest is adrift: listed, with ▶ and + card shut.
+       - ▶ takes the video to the caption's start and plays it, with the caption in view
+         and the phrase lit.  + card opens this sheet for the phrase; the flag leaves the
+         list when the card is SAVED, on any of the three targets (press() says so).
+     The video's record keeps what lib/later.js's flag has room for: the phrase, its
+     reading, its transliteration, its meaning, its vocabulary line as plain text
+     (vocText), the caption it is in, the caption's start and the phrase's place. */
+  var LT = window.ParsehLater || null;
+  var LATER_REF = LT ? (LT.refOf(location.pathname) || CFG.id || null) : null;
+  var laterPanel = null, laterBtn = null, laterSession = null, laterCopied = false;
+  var lpx = null, lpy = null, lmouse = false;
+  function laterOn() { return !!(LT && LATER_REF); }
+  function lnorm(s) {
+    s = String(s == null ? '' : s);
+    try { s = s.normalize('NFC'); } catch (e) {}
+    return s.replace(/\s+/g, ' ').trim();
+  }
+  function laterSay(text, bad) { if (window.Parseh && Parseh.toast) Parseh.toast(text, !!bad); }
+  // a phrase: the span of a caption's line, in the transcript or in a copy of it over the picture
+  function laterPhrase(node) {
+    var w = node && node.closest ? node.closest('.w') : null, line = w && w.closest('.seg');
+    var sg = line && segs[+line.dataset.i], ch = sg && sg.chunks && sg.chunks[+w.dataset.j];
+    return ch ? { sg: sg, ch: ch, w: w, i: +line.dataset.i, j: +w.dataset.j } : null;
+  }
+  function laterParts(sg, ch) {
+    return { kind: 'video', ref: LATER_REF, lang: L.code, glossLang: G.code, title: vidTitle(),
+             start: sg.start, j: (sg.chunks || []).indexOf(ch), cap: sg.text || '',
+             text: ch.fa, kana: ch.kana || '', tr: ch.tr || '', en: ch.en || '',
+             voc: vocText(ch.voc), sentence: sg.text || '' };
+  }
+  function laterId(sg, ch) {
+    return LT.idFor({ kind: 'video', ref: LATER_REF, start: sg.start, j: (sg.chunks || []).indexOf(ch), text: ch.fa });
+  }
+  function laterMarked(sg, ch) { return !!(laterOn() && sg && ch && LT.has(laterId(sg, ch))); }
+  /* FLAG IT, OR TAKE THE FLAG OFF -- what every way to flag does.  The flag taken off
+     carries the list's «removed · Undo»; one made says so, since a phrase is flagged
+     without breaking the pace of watching. */
+  function laterToggle(sg, ch) {
+    if (!laterOn() || !sg || !ch) return Promise.resolve(false);
+    var rec;
+    try { rec = LT.record(laterParts(sg, ch)); }
+    catch (e) { laterSay('this phrase cannot be marked: ' + e.message, true); return Promise.resolve(false); }
+    return LT.toggle(rec).then(function (on) {
+      if (on) laterSay('marked to review later');
+      return on;
+    }, function (e) { laterSay('could not mark it: ' + (e && e.message), true); return false; });
+  }
+  // the cloud's button, drawn with the rest of the row (fillCloud)
+  function laterButton(ch) {
+    if (!laterOn() || !cloudCtx) return '';
+    var on = laterMarked(cloudCtx.sg, ch);
+    return '<button type="button" class="mklater' + (on ? ' on' : '') + '" aria-pressed="' + (on ? 'true' : 'false') +
+           '" title="' + (on ? 'this phrase is on your review later list: press to take it off'
+                             : 'flag this phrase to come back to it later (L)') + '">' +
+           (on ? '✓ marked' : 'review later') + '</button>';
+  }
+
+  /* WHERE A FLAGGED PHRASE IS: the caption that starts when it did, the phrase of its
+     place if its text is still the flag's, else the phrase of the same text nearest to
+     that place; else, for a caption whose start has moved, the caption of the same text. */
+  function laterPick(sg, j, want) {
+    var cs = sg.chunks || [];
+    if (cs[j] && lnorm(cs[j].fa) === want) return j;
+    var best = -1, gap = 1e9;
+    cs.forEach(function (c, k) {
+      if (lnorm(c.fa) !== want) return;
+      var d = Math.abs(k - j);
+      if (d < gap) { best = k; gap = d; }
+    });
+    return best;
+  }
+  function laterFind(rec, byStart) {
+    var w = rec.where || {}, want = lnorm(rec.text), at = w.start || 0, j, i, hit = null;
+    var near = byStart ? (byStart[Math.round(at * 1000)] || []) : null;
+    for (var n = 0; n < (near ? near.length : segs.length); n++) {
+      i = near ? near[n] : n;
+      if (!near && Math.abs(segs[i].start - at) > 0.01) continue;
+      j = laterPick(segs[i], w.j || 0, want);
+      if (j >= 0) return { i: i, j: j, sg: segs[i], ch: segs[i].chunks[j] };
+    }
+    var cap = lnorm(w.text), gap = 1e9;
+    if (cap) segs.forEach(function (sg, k) {
+      if (lnorm(sg.text) !== cap) return;
+      var jj = laterPick(sg, w.j || 0, want), d = Math.abs(sg.start - at);
+      if (jj >= 0 && d < gap) { gap = d; hit = { i: k, j: jj, sg: sg, ch: sg.chunks[jj] }; }
+    });
+    return hit;
+  }
+  // the transcript has been read (a flag is asked about before the captions arrive, and waits for them)
+  function laterLoaded() {
+    if (segs.length) return Promise.resolve();
+    return new Promise(function (done) {
+      var tries = 0;
+      (function look() { if (segs.length || tries++ > 100) done(); else setTimeout(look, 100); })();
+    });
+  }
+
+  /* THE MARKS, kept in step with the store, with the transcript as it is drawn and with
+     the subtitles copied over the picture */
+  function laterPaint() {
+    if (!laterOn()) return;
+    var recs = LT.list({ ref: LATER_REF }), want = [], byStart = {};
+    if (recs.length) segs.forEach(function (sg, i) { (byStart[Math.round(sg.start * 1000)] = byStart[Math.round(sg.start * 1000)] || []).push(i); });
+    recs.forEach(function (rec) {
+      var hit = laterFind(rec, byStart);
+      if (!hit) return;
+      Array.prototype.forEach.call(document.querySelectorAll('.seg[data-i="' + hit.i + '"] .w[data-j="' + hit.j + '"]'),
+                                   function (e) { want.push(e); });
+    });
+    var keep = new Set(want);
+    Array.prototype.forEach.call(document.querySelectorAll('.later-mark'), function (e) {
+      if (!keep.has(e)) e.classList.remove('later-mark');
+    });
+    want.forEach(function (e) { e.classList.add('later-mark'); });
+    // and the cloud, if it is open, says where its phrase stands
+    var b = cloud.querySelector('.mklater');
+    if (b && cloudCtx) {
+      var on = laterMarked(cloudCtx.sg, cloudCtx.ch);
+      b.textContent = on ? '✓ marked' : 'review later';
+      b.classList.toggle('on', on);
+      b.setAttribute('aria-pressed', on ? 'true' : 'false');
+      b.title = on ? 'this phrase is on your review later list: press to take it off'
+                   : 'flag this phrase to come back to it later (L)';
+    }
+  }
+  var laterFlashTimer = 0, laterFlashed = [];
+  function laterFlash(hit) {
+    clearTimeout(laterFlashTimer);
+    laterFlashed.forEach(function (e) { e.classList.remove('later-flash'); });
+    laterFlashed = Array.prototype.slice.call(document.querySelectorAll('.seg[data-i="' + hit.i + '"] .w[data-j="' + hit.j + '"]'));
+    laterFlashed.forEach(function (e) { e.classList.add('later-flash'); });
+    laterFlashTimer = setTimeout(function () {
+      laterFlashed.forEach(function (e) { e.classList.remove('later-flash'); });
+      laterFlashed = [];
+    }, 1600);
+  }
+  function laterGo(rec) {
+    return laterLoaded().then(function () {
+      var hit = laterFind(rec);
+      if (!hit) {
+        if (laterPanel) laterPanel.refresh();
+        throw new Error('this phrase is no longer where it was');
+      }
+      // the caption in view and the phrase lit, and the video at its start, playing
+      if (els[hit.i]) els[hit.i].scrollIntoView({ behavior: 'auto', block: 'center' });
+      laterFlash(hit);
+      seek(hit.sg.start);
+    });
+  }
+  function laterLabel(rec) {
+    var w = rec.where || {}, at = w.start || 0, name = '';
+    for (var i = 0; i < segs.length && segs[i].start <= at + 0.01; i++) if (segs[i].chapter) name = segs[i].chapter;
+    return fmt(at) + (name ? ' · ' + name : '');
+  }
+
+  /* THE CARD SHEET for a flag, and how it ended (lib/later-cards.js asks): saved on any of its
+     three targets (press() tells laterPressDone), or shut without a card (closeAnki tells
+     laterSheetShut) -- except that a sheet shut while its answer is still out ends when the
+     answer comes. */
+  function laterNewSession(seq) {
+    var s = { seq: seq, over: false, late: false, box: A.box };
+    s.done = new Promise(function (resolve) {
+      s.finish = function (how) {
+        if (s.over) return;
+        s.over = true;
+        if (laterSession === s) laterSession = null;
+        resolve(how);
+      };
+    });
+    s.close = function () { if (ankiOpen && sheetSeq === seq) closeAnki(); };
+    return s;
+  }
+  function laterPressDone(seq, target, ok) {
+    var s = laterSession;
+    if (!s || s.seq !== seq) return;
+    var saved = ok === true && (target !== 'md' || laterCopied);
+    if (saved) s.finish('saved');
+    else if (s.late) s.finish('closed');
+  }
+  function laterSheetShut() {
+    var s = laterSession;
+    if (!s) return;
+    if (busyFor === s.seq) s.late = true; else s.finish('closed');
+  }
+  function laterOpenSheet(rec) {
+    return laterLoaded().then(function () {
+      var hit = laterFind(rec);
+      if (!hit) { if (laterPanel) laterPanel.refresh(); return null; }
+      if (laterSession) laterSession.finish('closed');
+      openAnki(hit.ch.fa, hit.ch, hit.sg, undefined, { i: hit.i, j: hit.j, k: null, line: '' });
+      laterSession = laterNewSession(sheetSeq);
+      return laterSession;
+    });
+  }
+
+  /* THE L KEY, heard first of all, on the window: the phrase the open cloud is for, else
+     the phrase under the pointer, else a word saying what to do.  Not while a field has the
+     keys, a sheet is over the page, or a modifier is down -- and it is the one single-letter
+     key this page has. */
+  window.addEventListener('pointermove', function (e) {
+    if (e.pointerType && e.pointerType !== 'mouse') return;
+    lmouse = true; lpx = e.clientX; lpy = e.clientY;
+  }, { passive: true, capture: true });
+  window.addEventListener('keydown', function (e) {
+    if ((e.key !== 'l' && e.key !== 'L') || e.altKey || e.ctrlKey || e.metaKey || e.defaultPrevented) return;
+    if (!laterOn()) return;
+    var t = e.target;
+    if (t && t.closest && t.closest('input, textarea, select, [contenteditable], .lp-wrap')) return;
+    if (ankiOpen || editing || dvOn || vmOpen || ntOn || dsheet) return;
+    var at = null;
+    if (cloudFor && cloudCtx && !cloud.hidden) at = { sg: cloudCtx.sg, ch: cloudCtx.ch };
+    else if (lmouse && lpx !== null) at = laterPhrase(document.elementFromPoint(lpx, lpy));
+    e.preventDefault();
+    if (!at) { laterSay('point at a phrase first, then press L'); return; }
+    laterToggle(at.sg, at.ch);
+  }, true);
+  // a held finger: lib/wordtouch.js adds «Review later: “…”» to its menu if this says it can
+  window.ParsehLaterMark = {
+    can: function (unit) { return laterOn() && !!laterPhrase(unit); },
+    marked: function (unit) { var p = laterPhrase(unit); return !!(p && laterMarked(p.sg, p.ch)); },
+    toggle: function (unit) { var p = laterPhrase(unit); return p ? laterToggle(p.sg, p.ch) : Promise.resolve(false); }
+  };
+
+  /* THE LIST: the panel lib/later.js draws for this video, and its door in the header */
+  function laterAdapter() {
+    return {
+      kind: 'video', ref: LATER_REF, title: vidTitle(), lang: L.code, glossLang: G.code,
+      // never on a phone
+      canCard: function () { return !mobileNow(); },
+      locate: function (rec) { return laterLoaded().then(function () { return { found: !!laterFind(rec) }; }); },
+      goTo: laterGo,
+      label: laterLabel,
+      makeCard: function (rec) {
+        return window.ParsehLaterCards ? ParsehLaterCards.one(laterOpenSheet, rec)
+                                       : Promise.reject(new Error('cards are not available here'));
+      },
+      queue: function (recs) {
+        return window.ParsehLaterCards ? ParsehLaterCards.queue({ records: recs, open: laterOpenSheet })
+                                       : Promise.reject(new Error('cards are not available here'));
+      }
+    };
+  }
+  // «⚑ later 3»: always in the browser layout; on a phone once there is something flagged, since the
+  // first line of a phone's header holds targets of a finger's size and counts them
+  function laterDoor() { if (laterBtn) laterBtn.hidden = mobileNow() && LT.count({ ref: LATER_REF }) === 0; }
+  /* ONE LINK OPENS THE VIDEO AT A PHRASE: <player>#later=<id>, from the page that lists every
+     flag.  The list opens on that flag and the video goes to its caption -- once the transcript
+     is drawn and the player is ready (or has been waited for long enough). */
+  function laterFromLink() {
+    var id = LT.fromHash();
+    if (!id) return;
+    LT.ready().then(function () {
+      var rec = LT.get(id);
+      if (!rec || rec.ref !== LATER_REF) { laterSay('that phrase is no longer on your review later list', true); return; }
+      var tries = 0;
+      (function go() {
+        if (!(segs.length && (ready || tries > 80)) && tries++ < 200) { setTimeout(go, 100); return; }
+        laterPanel.open({ id: id });
+        laterGo(rec).catch(function () {});
+      })();
+    });
+  }
+  (function laterStart() {
+    if (!laterOn()) return;
+    laterPanel = LT.panel(laterAdapter());
+    laterBtn = laterPanel.button;
+    var ttl = document.querySelector('header .ttl'), hd = document.querySelector('header');
+    if (ttl && ttl.parentNode) ttl.parentNode.insertBefore(laterBtn, ttl.nextSibling);
+    else if (hd) hd.appendChild(laterBtn);
+    laterDoor();
+    LT.on('change', function (d) {
+      if (d && d.ref && d.ref !== LATER_REF) return;
+      laterDoor();
+      laterPaint();
+    });
+    LT.ready().then(function () { laterDoor(); laterPaint(); });
+    if (window.Parseh && Parseh.mode && Parseh.mode.onChange) Parseh.mode.onChange(laterDoor);
+    laterFromLink();
+  })();
+
   window.ParsehPlayer = {
+    later: { panel: function () { return laterPanel; }, find: laterFind, toggle: laterToggle, paint: laterPaint,
+             go: laterGo, record: function (node) { var p = laterPhrase(node); return p ? laterParts(p.sg, p.ch) : null; } },
     kind: function () { return CFG.media ? 'film' : 'youtube'; },
     typo: typoApi,
     ready: function () { return !!(player && ready); },

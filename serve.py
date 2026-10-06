@@ -506,6 +506,10 @@ STATIC_FILES = {"/lib/lmlikelihoodsettings.js", "/lib/llmsettings.js", "/youtube
                 # the page's list (lib/later.js, lib/later.css; the reader and the
                 # player load them, and so does /later/)
                 "/lib/later.js", "/lib/later.css",
+                # and what a book's reader and a video's page give it: the cards made
+                # from the list (lib/later-cards.js) and the reader's four ways to flag,
+                # its marks and its going to a chunk (lib/later-reader.js)
+                "/lib/later-cards.js", "/lib/later-reader.js",
                 # keeping a thing on the phone, and saying when the computer
                 # cannot be reached (lib/keep.js, TO-DO §19.2, §19.5)
                 "/lib/keep.js",

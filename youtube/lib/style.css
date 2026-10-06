@@ -395,6 +395,18 @@ header #lookupset:hover{color:var(--accent);border-color:var(--accent)}
   background:var(--bg);border:1px solid var(--rule);border-radius:5px;
   padding:3px 8px;cursor:pointer}
 #cloud .mkrow button:hover{color:var(--accent);border-color:var(--accent)}
+/* REVIEW LATER's button, last in the row (lib/later.css dresses it for the book reader's cloud;
+   here the row's own rule dresses it and the row's gap spaces it): once the phrase is flagged it
+   says so by its border, a ring and its words -- «✓ marked» -- and keeps its ink */
+#cloud .mkrow .mklater{margin-left:0}
+#cloud .mkrow .mklater.on{color:var(--ink);border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent)}
+/* THE DOOR «⚑ later 3» (lib/later.js draws it, player.js puts it after the title) in a header that is
+   already as full as a window of 1280px can hold it: with the word, the header went on to a second row at
+   1280px (every line of the transcript a row lower), and without it -- «⚑ 3», its label and its tooltip
+   saying the rest -- one window width less is enough.  The word comes back where there is room. */
+@media (max-width:1479px){
+  header .later-btn .lb-word{display:none}
+}
 
 /* ---------------- the reader's own mark: the four colours ----------------
    The same four names as the books (\Cred and friends in the .tex, hl-red

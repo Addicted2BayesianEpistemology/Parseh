@@ -949,10 +949,12 @@ async function partTouch() {
   await page.waitForFunction(() => !!window.ParsehWordTouch);
   await hold(page, 'main .p1 .wd');
   const rows = await wtRows(page);
-  eq(rows.length, 3, 'a tablet, browser mode: a held finger opens three lines ' + JSON.stringify(rows));
+  eq(rows.length, 4, 'a tablet, browser mode: a held finger opens four lines ' + JSON.stringify(rows));
   assert(/^Card for /.test(rows[0]), 'the first makes a card of that word: ' + rows[0]);
   assert(/^Copy /.test(rows[1]) && rows[2] === 'Copy the sentence',
-         'then the chunk and the sentence: ' + JSON.stringify(rows.slice(1)));
+         'then the chunk and the sentence: ' + JSON.stringify(rows.slice(1, 3)));
+  // (a0.5.0) and the last, the nearest to the finger, flags the chunk to review later -- in both modes
+  assert(/^Review later: “/.test(rows[3]), 'and the chunk to review later: ' + rows[3]);
   await page.click('.wt-menu button:nth-child(1)');
   await page.waitForFunction(() => !document.getElementById('anki').hidden);
   assert((await page.inputValue('#afa')).length > 0,
@@ -985,8 +987,9 @@ async function partTouch() {
   await page.waitForFunction(() => !!window.ParsehWordTouch);
   await hold(page, 'main .p1 .wd');
   const m = await wtRows(page);
-  eq(m.length, 2, 'the mobile mode: two lines ' + JSON.stringify(m));
-  assert(m.every(x => /^Copy/.test(x)), 'both are copies: nothing there makes a card');
+  eq(m.length, 3, 'the mobile mode: three lines ' + JSON.stringify(m));
+  assert(m.slice(0, 2).every(x => /^Copy/.test(x)) && /^Review later: “/.test(m[2]),
+         'two copies and the flag for review later: nothing there makes a card');
 
   // ---- c) "?" -- every title one tap away
   eq(await page.evaluate(() => window.matchMedia('(hover: none)').matches), true,
