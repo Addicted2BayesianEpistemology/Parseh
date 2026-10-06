@@ -251,6 +251,8 @@ body[data-theme=light] .pg-panel,body[data-theme=sepia] .pg-panel{color-scheme:l
 .pg-sheet .pg-help{font-size:13.5px}
 .pg-sheet .pg-switch{width:60px;height:48px}
 .pg-sheet :is(.pg-chip,.pg-btn,.pg-select,.pg-lvname){min-height:48px}
+/* the zoom's [−] and [+] are fingers' targets too: 48 wide as well as 48 high (docs/mobile.md) */
+.pg-sheet .pg-stepbtn{min-width:48px}
 /* a text box or a picker under 16px makes an iPhone zoom the page in when it is touched */
 .pg-sheet :is(.pg-select,.pg-lvname){font-size:16px}
 .pg-sheet .pg-range{height:48px}
