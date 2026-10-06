@@ -86,6 +86,10 @@ SHARED = (
     "/lib/parseh.css", "/lib/langs.css", "/lib/mobile.css", "/lib/parseh.js",
     "/lib/narrctl.js", "/lib/mobilereader.js", "/lib/mobileplayer.js",
     "/lib/wordtouch.js", "/lib/explain.js", "/lib/prefs.js", "/lib/activity.js",
+    # THE GEAR (a0.5.0): the one panel every page opens for its own settings.  A kept page
+    # carries the button and a panel built by this script, and a script or a sheet the phone
+    # has not got is a page whose ⚙ does nothing -- or draws bare -- with the computer away
+    "/lib/pagesettings.js", "/lib/pagesettings.css",
     # what a reader of a book an agent is making adds to itself (parseh.js loads it
     # into every reader; it asks one question and does nothing for any other book)
     "/lib/making.js",
