@@ -11,8 +11,10 @@ for.  The core (the store, the door, the sidebar) is tests/test_later.py's.
 """
 import re
 import sys
+import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
 for folder in ("lib", "youtube/lib", "."):
@@ -32,6 +34,33 @@ PLAYERHTML = (ROOT / "youtube" / "lib" / "player.html").read_text(encoding="utf-
 PLAYERCSS = (ROOT / "youtube" / "lib" / "style.css").read_text(encoding="utf-8")
 FILES = ("/lib/later-reader.js", "/lib/later-cards.js")
 NO_HTML_FROM_STRINGS = ("innerHTML", "outerHTML", "insertAdjacentHTML", "document.write", "createContextualFragment", "srcdoc")
+
+# THE PHONE-KEEPING MEMORIES GO TO A FOLDER OF THIS FILE'S OWN, as tests/test_later.py sends them: asking
+# lib/offline.py what the app is made of (offline.shell(), below) writes the checksums of the files it hashed
+# into `offline.DIGESTS` -- config/digests.json beside the checkout, which is the owner's.
+# tests/test_config_untouched.py caught this module doing it.
+_scratch = None
+_patches = []
+
+
+def setUpModule():
+    global _scratch
+    _scratch = tempfile.TemporaryDirectory()
+    config = Path(_scratch.name) / "config"
+    _patches[:] = [patch.object(offline, "DIGESTS", str(config / "digests.json")),
+                   patch.object(offline, "WHERES", str(config / "wheres.json")),
+                   patch.object(offline, "_digests", None),
+                   patch.object(offline, "_digests_new", False),
+                   patch.object(offline, "_wheres_store", None),
+                   patch.object(offline, "_wheres_store_new", False)]
+    for p in _patches:
+        p.start()
+
+
+def tearDownModule():
+    for p in reversed(_patches):
+        p.stop()
+    _scratch.cleanup()
 
 
 class Files(unittest.TestCase):

@@ -57,6 +57,12 @@ def is_redirect(text):
     return 'http-equiv="refresh"' in text
 
 
+# A page DRAWS in TeX Gyre Chorus when something in it sets type in the face (a font-family or font
+# declaration, in a style block or an attribute) or points at its file.  A page may NAME the face in
+# words -- the hub's page and what's new say the name in the bar is set in it -- and that draws nothing.
+DRAWS_IN_CHORUS = re.compile(r"font(?:-family)?\s*:(?:&\w+;|[^;}<])*Chorus|texgyrechorus", re.I)
+
+
 class PublishedLayout(unittest.TestCase):
     """build.py --pages, assembled once."""
 
@@ -238,10 +244,10 @@ class TheInstalledGuideHasNoBar(unittest.TestCase):
     def test_the_installed_guide_draws_nothing_in_the_bars_face(self):
         # TeX Gyre Chorus sets the name Parseh in the bars of the app and of the studio since a0.5.0, so the studio's
         # stylesheet that the guide carries names it (the next test); what the installed guide has no part in is
-        # the NAME's drawing: no page names the face, there is no bar, and the guide's own header, "Parseh guide",
-        # is set in the guide's own faces
+        # the NAME's drawing: no page sets anything in the face (one may say its name in words), there is no bar,
+        # and the guide's own header, "Parseh guide", is set in the guide's own faces
         for p in html_files(GUIDE / "site") + [GUIDE / "index.html"]:
-            self.assertNotIn("TeX Gyre Chorus", p.read_text(encoding="utf-8"), str(p.relative_to(ROOT)))
+            self.assertIsNone(DRAWS_IN_CHORUS.search(p.read_text(encoding="utf-8")), str(p.relative_to(ROOT)))
         for p in (GUIDE / "assets" / "guide.css", GUIDE / "assets" / "guide.js"):
             self.assertNotIn("Chorus", p.read_text(encoding="utf-8"), str(p.relative_to(ROOT)))
 
@@ -258,7 +264,7 @@ class TheInstalledGuideHasNoBar(unittest.TestCase):
     def test_a_plain_compile_carries_the_face_the_studio_sheet_names_and_draws_nothing_in_it(self):
         # the studio's app.css names TeX Gyre Chorus for the name in its bar (.hublink), and the guide's compile takes
         # that sheet and every font it names: the file is in the installed guide, its @font-face is in studio.css,
-        # and not one page of it sets anything in the face
+        # and not one page of it sets anything in the face (a page may say its name in words)
         with tempfile.TemporaryDirectory(prefix="guide-plain-face-") as td:
             out = Path(td) / "site"
             report = Site(GUIDE).build(out)
@@ -272,7 +278,7 @@ class TheInstalledGuideHasNoBar(unittest.TestCase):
             files = html_files(out)
             self.assertGreater(len(files), 100)
             for p in files:
-                self.assertNotIn("TeX Gyre Chorus", p.read_text(encoding="utf-8"), str(p.relative_to(out)))
+                self.assertIsNone(DRAWS_IN_CHORUS.search(p.read_text(encoding="utf-8")), str(p.relative_to(out)))
 
     def test_a_plain_compile_has_no_bar(self):
         # the switch is off unless assemble_pages turns it on: the compile
