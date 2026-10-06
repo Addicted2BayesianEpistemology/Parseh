@@ -137,7 +137,7 @@ Parseh-mine's update from GitHub; everything under *Afterwards*.
 
 ## The known-red baseline
 
-**There is none: every suite is green** (a0.4.4, 2026-10-05). A red suite in
+**There is none: every suite is green** (a0.5.0, 2026-10-06). A red suite in
 step 1 is new breakage and stops the release, unless it is under *Flaky*
 below and passes when run again alone.
 
@@ -158,14 +158,14 @@ run on this machine, were brought up to what it now does (`add_stt`,
 title bar of the transcription window was a `<header>`, which the video pages'
 stylesheet pins to the top of the screen.
 
-Measured on 2026-10-05 on the finished a0.4.4 tree, one suite at a time,
+Measured on 2026-10-06 on the finished a0.5.0 tree, one suite at a time,
 with `TMPDIR` on the main disk:
 
 | Suite | State | Result |
 |---|---|---|
-| unit — `python3 -m unittest discover -s tests -p "test_*.py"` | green | `Ran 3328 tests … OK (skipped=14)` |
-| `python3 tests/smoke.py` | green | `1893 passed, 0 failed, 21 skipped` |
-| the 68 `tests/*.mjs` | green | those under *Flaky* below fail now and then, and pass on a second run, alone |
+| unit — `python3 -m unittest discover -s tests -p "test_*.py"` | green | `Ran 3616 tests … OK (skipped=14)` |
+| `python3 tests/smoke.py` | green | `1897 passed, 0 failed, 21 skipped` |
+| the 77 `tests/*.mjs` | green | those under *Flaky* below fail now and then, and pass on a second run, alone |
 
 A new red is breakage: in a worktree on the previous release's tag, run the
 same suite — if it is red there too, it is old; if not, it is yours. (A worktree
@@ -194,6 +194,9 @@ breakage:
 - `tests/studio_audio.mjs`: *the pasted clip plays*;
 - `tests/studio_starter_media.mjs`: *timed out: the editor draws the new
   picture*;
+- `tests/studio_narrow.mjs`, its phone part: *phone 320x568, a contents jump
+  down: the heading is at the top of the screen* (94 px once, in a full run on
+  a machine at load 5; 10 px each of the four times it was run alone);
 - `tests/arasaac_door.mjs`, its phone pass, section *g*: *both languages can be
   removed now (got 0, want 2)* (once in a full run; green alone, 286 checks);
 - `tests/cardkit.mjs`: *a clip recorded in the browser and one cut from a tab's
@@ -251,6 +254,10 @@ once in one checkout break each other — and compare with the baseline.
    ```bash
    mkdir -p ../parseh-suites && : > ../parseh-suites/results.txt && for t in tests/*.mjs; do n=$(basename "$t" .mjs); NO_COLOR=1 timeout 900 deno run --allow-all "$t" > "../parseh-suites/$n.log" 2>&1; echo "$n $?" | tee -a ../parseh-suites/results.txt; done
    ```
+
+   (`tests/guide_shots.mjs` is among them, and saves nothing of the guide's
+   unless `GUIDE_SHOTS_WRITE=1` is set: it only takes the pictures into a
+   folder it removes, to show that each can still be taken.)
 
    Then the red ones, each with the end of its log:
 
