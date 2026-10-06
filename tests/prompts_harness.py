@@ -39,6 +39,8 @@ os.chdir(ROOT)
 for p in ("markdown/exlex", "markdown/app", "lib", "youtube/lib", "."):
     sys.path.insert(0, str(ROOT / p))
 import network                                                 # noqa: E402
+import offline                                                 # noqa: E402
+import prefs                                                   # noqa: E402
 import promptkit                                               # noqa: E402
 import prompts                                                 # noqa: E402
 import serve                                                   # noqa: E402
@@ -47,6 +49,11 @@ import store                                                   # noqa: E402
 tmp = Path(tempfile.mkdtemp(prefix="parseh-prompts-test-"))
 network.STORE = str(tmp / "config" / "network.json")
 prompts.STORE = str(tmp / "config" / "prompts.json")
+# and the owner's preferences (a page of the studio saves its theme through lib/prefs.py since a0.5.0) and the two
+# memories of the phone-keeping door: nothing here may reach config/
+prefs.STORE = str(tmp / "config" / "prefs.json")
+offline.DIGESTS = str(tmp / "config" / "digests.json")
+offline.WHERES = str(tmp / "config" / "wheres.json")
 store.LIB = tmp / "library"
 serve.Handler.log_request = lambda self, *a, **k: None
 serve.Handler.log_message = lambda self, *a: None

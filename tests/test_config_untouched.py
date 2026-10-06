@@ -22,6 +22,7 @@ never loads this file and is not guarded; the full run is the one that must
 be clean before a version is cut, and that is the one that looks.
 """
 import json
+import subprocess
 import sys
 import tempfile
 import types
@@ -164,6 +165,33 @@ class TheGuardItself(unittest.TestCase):
         suite.run(result)
         self.assertEqual(len(result.failures), 1, result.failures)
         self.assertIn("prefs.json changed", result.failures[0][1])
+
+    def test_the_command_line_names_what_a_run_of_browser_suites_did_and_when(self):
+        """Release step 1 runs the browser suites in a loop of its own, and
+        asks `configguard.py` before it and after it (docs/releasing.md): the
+        same words, the exit status, and the time each file was written, which
+        is the way to the suite that ran then."""
+        folder = self.scratch()
+        memory = folder.parent / "before.json"
+
+        def run(*args):
+            return subprocess.run([sys.executable, str(HERE / "configguard.py"), *args, "--folder", str(folder)],
+                                  capture_output=True, text=True)
+
+        saved = run("save", str(memory))
+        self.assertEqual(saved.returncode, 0, saved.stdout + saved.stderr)
+        same = run("check", str(memory))
+        self.assertEqual((same.returncode, same.stdout.strip().endswith("is as it was")), (0, True), same.stdout + same.stderr)
+        (folder / "prefs.json").write_text(json.dumps({"theme": "dark"}))
+        (folder / "network.json").write_text("{}")
+        said = run("check", str(memory))
+        self.assertEqual(said.returncode, 1, said.stdout + said.stderr)
+        self.assertIn('prefs.json changed', said.stdout)
+        self.assertIn('theme ("light" -> "dark")', said.stdout)
+        self.assertIn("network.json appeared (2 bytes)", said.stdout)
+        self.assertRegex(said.stdout, r"prefs\.json written at \d\d:\d\d:\d\d")
+        self.assertRegex(said.stdout, r"network\.json written at \d\d:\d\d:\d\d")
+        self.assertEqual(run("check").returncode, 2, "a missing file name is a usage error, not a pass")
 
     def test_discovery_hands_back_a_guarded_suite(self):
         """The wiring, through unittest's own discovery of this directory: the

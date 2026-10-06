@@ -20,11 +20,24 @@ digests.json and wheres.json, and nobody saw it until another session
 happened to hash the file.  A redirect mends one store; this makes the next
 one visible the first time the suite runs, whatever the store is called.
 
-Used by `tests/test_config_untouched.py`, which watches the unit suite, and
-by `tests/smoke.py`, which watches itself.  Standard library only.
+Used by `tests/test_config_untouched.py`, which watches the unit suite, by
+`tests/smoke.py`, which watches itself, and from the command line by release
+step 1 (docs/releasing.md), around the loop of browser suites, which have no
+suite of their own to watch them:
+
+    python3 tests/configguard.py save ../parseh-suites/config.before
+    ... every tests/*.mjs ...
+    python3 tests/configguard.py check ../parseh-suites/config.before
+
+`check` says what moved and WHEN each file was written, which is the way to
+the suite that ran at that time (the logs of the loop are dated).  Standard
+library only.
 """
+import base64
 import json
 import os
+import sys
+import time
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -124,3 +137,57 @@ def report(before, after, folder=CONFIG):
         return ""
     return ("%s changed while the tests ran:\n  %s\n%s"
             % (folder, "\n  ".join(said), ADVICE))
+
+
+def save(path, folder=CONFIG):
+    """Remember what `folder` holds, in a file of its own, for `check` to be
+    asked about after a run of suites that are not unit tests."""
+    mem = {name: None if data is None else base64.b64encode(data).decode("ascii")
+           for name, data in snapshot(folder).items()}
+    Path(path).write_text(json.dumps(mem), encoding="utf-8")
+
+
+def load(path):
+    """What `save` remembered -> a snapshot."""
+    mem = json.loads(Path(path).read_text(encoding="utf-8"))
+    return {name: None if data is None else base64.b64decode(data) for name, data in mem.items()}
+
+
+def check(path, folder=CONFIG):
+    """What a run did to `folder` since `save` -> (the report, or "" when it
+    is as it was, and the time each file it names was last written)."""
+    before, now = load(path), snapshot(folder)
+    when = []
+    for line in changes(before, now):
+        # a line of `changes` begins with the path it is about
+        file = Path(folder) / line.split(" ", 1)[0]
+        if file.is_file():
+            when.append("%s written at %s" % (file.name, time.strftime("%H:%M:%S", time.localtime(file.stat().st_mtime))))
+    return report(before, now, folder), when
+
+
+def main(argv):
+    folder = CONFIG
+    if "--folder" in argv:
+        i = argv.index("--folder")
+        folder = Path(argv[i + 1])
+        argv = argv[:i] + argv[i + 2:]
+    if len(argv) != 2 or argv[0] not in ("save", "check"):
+        print("usage: python3 tests/configguard.py save|check FILE [--folder DIR]")
+        return 2
+    if argv[0] == "save":
+        save(argv[1], folder)
+        print("%s remembered in %s" % (folder, argv[1]))
+        return 0
+    said, when = check(argv[1], folder)
+    if not said:
+        print("%s is as it was" % folder)
+        return 0
+    print(said)
+    for line in when:
+        print("  " + line)
+    return 1
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

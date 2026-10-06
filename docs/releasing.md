@@ -252,8 +252,15 @@ once in one checkout break each other — and compare with the baseline.
    and a half):
 
    ```bash
-   mkdir -p ../parseh-suites && : > ../parseh-suites/results.txt && for t in tests/*.mjs; do n=$(basename "$t" .mjs); NO_COLOR=1 timeout 900 deno run --allow-all "$t" > "../parseh-suites/$n.log" 2>&1; echo "$n $?" | tee -a ../parseh-suites/results.txt; done
+   mkdir -p ../parseh-suites && : > ../parseh-suites/results.txt && python3 tests/configguard.py save ../parseh-suites/config.before && for t in tests/*.mjs; do n=$(basename "$t" .mjs); NO_COLOR=1 timeout 900 deno run --allow-all "$t" > "../parseh-suites/$n.log" 2>&1; echo "$n $?" | tee -a ../parseh-suites/results.txt; done; python3 tests/configguard.py check ../parseh-suites/config.before
    ```
+
+   The last line must say that `config/` is as it was. The browser suites
+   have no guard of their own, and one that writes there changes the owner's
+   own settings (a suite once left his theme dark): `check` says what moved
+   and when each file was written, and the suite that ran then is the one
+   whose log has that time (`ls -l --time-style=full-iso
+   ../parseh-suites/*.log`).
 
    (`tests/guide_shots.mjs` is among them, and saves nothing of the guide's
    unless `GUIDE_SHOTS_WRITE=1` is set: it only takes the pictures into a

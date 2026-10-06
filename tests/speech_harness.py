@@ -51,12 +51,19 @@ for p in ("markdown/exlex", "markdown/app", "lib", "youtube/lib", "."):
 import network                                                 # noqa: E402
 import download                                                # noqa: E402
 import getstt                                                  # noqa: E402
+import offline                                                 # noqa: E402
+import prefs                                                   # noqa: E402
 import serve                                                   # noqa: E402
 
 AS_PHONE = "--as-phone" in sys.argv[1:]
 REAL = sys.argv[sys.argv.index("--real") + 1] if "--real" in sys.argv[1:] else ""
 tmp = Path(tempfile.mkdtemp(prefix="parseh-speech-door-test-"))
 network.STORE = str(tmp / "config" / "network.json")
+# and the owner's preferences (a page of Settings saves its theme through lib/prefs.py) and the two memories of the
+# phone-keeping door: nothing here may reach config/
+prefs.STORE = str(tmp / "config" / "prefs.json")
+offline.DIGESTS = str(tmp / "config" / "digests.json")
+offline.WHERES = str(tmp / "config" / "wheres.json")
 STT = Path(REAL) if REAL else tmp / "stt"
 getstt.STT_DIR = str(STT)
 if not REAL:
