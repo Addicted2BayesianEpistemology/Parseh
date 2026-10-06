@@ -876,6 +876,10 @@ await scene('e3) the video on the whole screen: the subtitles are copies of a ca
   await page.waitForFunction(() => document.documentElement.classList.contains('m-vfullon'), null, {timeout: 8000});
   await page.evaluate(() => document.querySelectorAll('#segs .seg .lab')[2].click());
   await page.waitForFunction(() => { const s = document.querySelector('.m-subs .seg'); return !!s && !!s.querySelector('.w'); }, null, {timeout: 10000});
+  // a caption of this film lasts two seconds and what follows takes longer on a busy machine: a copy of the next one
+  // would have no dotted line under it, so the film stands still on the caption (a person holds a finger on a paused line)
+  await page.evaluate(() => { ParsehPlayer.pause(); ParsehPlayer.seek(4.5); });
+  await page.waitForFunction(() => /Bring a bag/.test((document.querySelector('.m-subs') || {}).textContent || ''), null, {timeout: 10000});
   await sleep(600);
   assert(await page.evaluate(() => document.querySelector('.later-btn').getClientRects().length === 0), 'the whole screen draws nothing new: the door is not on it');
   await hold(page, '.m-subs .w');
