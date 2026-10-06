@@ -825,9 +825,14 @@ to the repository's number, which `urllib` follows, and the release's zip
 and `.sha256` still download from the old address: so an old install's
 **Check now** finds the new release, for as long as nobody takes the old
 name again. (Measured on other repositories on 2026-09-26; for this one it
-is step 11's first look, and `links --old` shows the `301`.) Record here what
-it did, with the date: *not yet recorded — the first release from the new
-home is its test.* The owner's rule (2026-09-30) is that nobody but him had
+is step 11's first look, and `links --old` shows the `301`.) What it did:
+**2026-10-06, the day of the transfer** — a0.4.1's own `lib/updater.py`,
+making its own request, asked
+`api.github.com/repos/Addicted2BayesianEpistemology/Parseh/releases/latest`
+and was answered `200` at `api.github.com/repositories/1379498689/releases/latest`;
+the answer already names the zip and its `.sha256` under `parseh-io/Parseh`,
+and both downloaded. The same road through Settings, to a release published
+from the new home: *not yet recorded — step 11 of a0.4.4 is its test.* The owner's rule (2026-09-30) is that nobody but him had
 installed Parseh, so no bridge release stands in the old repository: his own
 copy takes the release by the public road if the redirect holds, and by the
 zip if it does not.
