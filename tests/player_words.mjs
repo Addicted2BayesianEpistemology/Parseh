@@ -296,10 +296,13 @@ async function sameAsBefore(lang, base, mine, clouds) {
   ok(whole >= 3 && plain >= 6, `${lang}: enough without words to compare (${whole} captions, ${plain} phrases)`);
   for (const [s, j] of clouds) {
     await hover(base.page, s, j); await hover(mine.page, s, j);
-    // one deliberate change since the base: the cloud's card button reads
-    // "+ card", the sheet it opens making an Anki card, an exercise or markdown
-    eq(await cloudHTML(mine.page), (await cloudHTML(base.page)).replace('>+ anki card</button>', '>+ card</button>'),
-       `${lang}: the cloud of caption ${s} phrase ${j}, without words, as it was (its card button renamed "+ card")`);
+    // two deliberate changes since the base: the cloud's card button reads
+    // "+ card", the sheet it opens making an Anki card, an exercise or markdown,
+    // and its row ends with the button that flags the phrase for later (a0.5.0)
+    const LATER = '<button type="button" class="mklater" aria-pressed="false" title="flag this phrase to come back to it later (L)">review later</button>';
+    eq(await cloudHTML(mine.page), (await cloudHTML(base.page)).replace('>+ anki card</button>', '>+ card</button>')
+         .replace('</div><div class="colrow">', LATER + '</div><div class="colrow">'),
+       `${lang}: the cloud of caption ${s} phrase ${j}, without words, as it was (its card button renamed "+ card", a review later button at the end of its row)`);
   }
   await base.context.close();
 }
