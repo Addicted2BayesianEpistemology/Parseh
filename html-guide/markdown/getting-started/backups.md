@@ -84,7 +84,9 @@ back as the same deck, with every file it had and every answer.
 - The dictionaries, sentences and models fetched on **Settings → Reading
   help**: fetch them again there.
 - Your settings and the devices you let in, `config/`: a Parseh on another
-  computer starts with its own, and a phone is let in there once more. A
+  computer starts with its own, and a phone is let in there once more. The chunks
+  you flagged to [review later](../books/review-later.md) and the names you gave the
+  levels live there too, in `config/prefs.json`, beside the places you were reading. A
   LaTeX theme travels on its own: **Export** on **Settings → LaTeX
   drawings**, and **Import a theme…** on the other computer.
 - The TeX packages Parseh got, `texmf/`: get them again on **Settings →
@@ -94,8 +96,8 @@ back as the same deck, with every file it had and every answer.
 - The ARASAAC pictograms, `arasaac/`: some 160 MB of other people's pictures,
   under a licence that asks for a credit; get them again on **Settings →
   Pictograms (ARASAAC)**.
-- What each browser remembers: the theme, the language, where you are in a
-  book.
+- What each browser remembers: the language, the sizes and the levels shown, the page
+  zoom.
 - What can be built again: the readers, the library page, the PDFs of the
   books, the LaTeX drawings (`markdown/latex/`), made again from their
   blocks.

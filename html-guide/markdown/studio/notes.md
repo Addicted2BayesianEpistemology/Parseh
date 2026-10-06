@@ -73,7 +73,7 @@ than in the studio's library. So:
   the other note's **↩ Linked from**. A link from a note to a studio
   document, or to another book's note, finds nothing.
 - **Every page and button is there** — scoped to the notes. A note's page
-  has its tags, its typography, its contents, its glosses, its exercises
+  has its tags, its ⚙ panel, its contents, its glosses, its exercises
   with **Check exercises** and **⤢ Enlarge**; its **← Library** opens the
   library of that book's notes, with the same search, tags, **Upload .md /
   .zip**, **Backup**, **Load from backup** and **Download N shown** as the

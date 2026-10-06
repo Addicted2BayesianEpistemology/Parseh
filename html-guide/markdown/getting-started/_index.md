@@ -27,6 +27,7 @@ of its doors:
 | **Videos** | a YouTube video, or a film of your own, with its whole transcript underneath and every phrase glossed |
 | **Studio** | notes on the language in a small Markdown dialect, read on screen or built into a PDF |
 | **Exercises** | decks of the studio's exercises, studied like Anki cards: each comes back when it is due |
+| **⚑ Review later** | the chunks you flagged while reading or watching, to go back to, test yourself on, or turn into cards |
 | **⇆ Anki** | the card store the books and the videos write cards into, and the way to and from Anki |
 | **✂ The clip tray** | the recordings and pictures cut for cards, waiting to go onto one |
 | **🔍 Reading what nobody has glossed** | dictionaries, and the rest of what reading an unglossed text takes |
@@ -73,6 +74,6 @@ and the [reference](../reference/index.html), where the commands are and
 what a message means.
 
 The pages of this section, below, go through the first steps one at a
-time: installing and starting, the hub, the two interfaces, the Working…
-indicator, where everything lives on the disk, the backups, and this guide
+time: installing and starting, the hub, the two interfaces, the ⚙ settings
+of a page, the Working… indicator, where everything lives on the disk, the backups, and this guide
 itself.

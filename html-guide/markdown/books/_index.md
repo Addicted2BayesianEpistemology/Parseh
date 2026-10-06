@@ -23,29 +23,34 @@ one you choose, and you watch the book grow from the library.
 Open the library ([The library](doc:The library)), pick a book, and read
 ([The reader](doc:The reader)). To make a book of your own, start at
 [Adding a book](doc:Adding a book); to hear one, at [Adding a
-narration](doc:Adding a narration). The pages of this section are listed at
+narration](doc:Adding a narration). While you read, flag a chunk without stopping
+and come back to it later ([Review later](review-later.md)); every setting of the
+page is in its ⚙ panel ([The ⚙ settings of a page](../getting-started/page-settings.md)).
+The pages of this section are listed at
 the foot of this one, in the order a book is usually met: finding it,
 reading it, hearing it, writing it, taking it away.
 
-## Passes: the same text, several ways
+## Levels: the same text, several ways
 
-Each subparagraph of a book is set several times over, one *pass* after the
-other. Which passes there are depends on the language, and the header of
-the reader has one numbered button per pass to show or hide it:
+Each subparagraph of a book is set several times over, one *level* after the
+other. Which levels there are depends on the language, and the header of
+the reader has one button for each, named for what it shows, to show or hide it:
 
-| Language | The passes, by the number on their button |
+| Language | The levels, by the name on their button |
 |---|---|
-| Persian | 1 the vowelled attempt · 2 chunks and glosses · 3 bare naskh · 4 nastaliq |
-| Arabic | 1 the vowelled attempt · 2 chunks and glosses · 3 unvowelled, as Arabic is written |
-| Japanese | 1 with furigana over each word · 2 the reading alone, in kana · 3 chunks and glosses · 4 plain, as Japanese is written · 5 vertical (tategaki) |
-| Chinese | 1 with pinyin over each word · 2 the reading alone, in pinyin · 3 chunks and glosses · 4 plain, as Chinese is written · 5 vertical |
-| Italian, French, German, Turkish, English, Hindi, Spanish | 1 the sentence · 2 chunks and glosses |
+| Persian | **With vowels** · **Chunks** · **Plain** · **Nastaliq** |
+| Arabic | **With vowels** · **Chunks** · **Plain** |
+| Japanese | **Furigana** · **Kana only** · **Chunks** · **Plain** · **Vertical** |
+| Chinese | **Pinyin** · **Pinyin only** · **Chunks** · **Plain** · **Vertical** |
+| Italian, French, German, Turkish, English, Hindi, Spanish | **Sentence** · **Chunks** |
 
-Pass 1 is your own attempt at the sentence, before any help arrives; the
-chunks-and-glosses pass is the help; the others give the sentence again — as
+The first level is your own attempt at the sentence, before any help arrives; the
+chunks level is the help; the others give the sentence again — as
 it is really printed, in its other face, or, in Japanese and Chinese, as it is
-read aloud. The list comes from Parseh's language
-registry, so a language added to the toolbox brings its own passes with it.
+read aloud. The names are yours to change, and a Persian or Arabic book can put
+the vowel marks away: [Levels and their names](levels.md). The list comes from
+Parseh's language registry, so a language added to the toolbox brings its own
+levels with it.
 
 ## Where a book lives
 

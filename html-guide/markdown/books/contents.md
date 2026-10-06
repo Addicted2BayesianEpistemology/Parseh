@@ -96,8 +96,8 @@ build time, so the answer says *— reload to see it in the book* and offers
 words; from a page opened off the disk, nothing is written and the sheet
 says so.
 
-Chapters and sections also matter to the narration: **stop at a change**
-holds the playing at the start of each new chapter or section
+Chapters and sections also matter to the narration: **Wait at each new chapter**
+(in the ⚙ panel) holds the playing at the start of each new chapter or section
 ([Playing and listening](doc:Playing and listening)).
 
 ## Folding a run of paragraphs away

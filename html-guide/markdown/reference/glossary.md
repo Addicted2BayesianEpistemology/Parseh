@@ -1,7 +1,7 @@
 ---
 title: Glossary
 weight: 6
-description: The words Parseh uses — chunk, gloss, seam, run, pass, shape, jolly card and the rest — each in a sentence or two.
+description: The words Parseh uses — chunk, gloss, seam, run, level, shape, jolly card and the rest — each in a sentence or two.
 ---
 
 The words the pages and this guide use in a sense of their own, grouped
@@ -61,7 +61,13 @@ Chunk
 Colour
 : A chunk may carry one of four: red, blue, orange or green — the
   reader's own mark, chosen in the chunk's sheet (in the player, with the
-  four dots of its gloss cloud). In a book it shows on pass 1 only.
+  four dots of its gloss cloud). In a book it shows on the first level only.
+
+Diacritics
+: The small marks that write a Persian or an Arabic word's vowels, its doubled
+  consonants and its silent stop. **Diacritics**, a switch in the ⚙ panel, puts them
+  away from what is drawn — the first two levels of a book, the lines of a video — and
+  nothing else ([Levels and their names](../books/levels.md#diacritics)).
 
 Draft
 : A book or a video started from its text alone — **Make the draft** on
@@ -95,22 +101,30 @@ Half-glossed chunk
   one on the way to a whole gloss; the checkers list it as an error until
   it is finished, and an LLM's answer never writes one.
 
+Level
+: One way of setting a book's text: the sentence whole, the chunks with
+  their glosses, the text without its vowel marks, a second face, the
+  text set vertically. Each language has its own list, and its own names for them —
+  **With vowels**, **Chunks**, **Plain**… — which a person can change; the buttons in
+  the reader's header switch them on and off. (The registry and the files call
+  them *passes*.) [Levels and their names](../books/levels.md).
+
 Narration
 : A book read aloud. It is a list of **recordings**, each covering a
   stretch of the text and timed in seconds into its own file, so a book
   can be recorded a few chapters at a time. The **narration** panel in the
   reader holds the list.
 
-Pass
-: One way of setting a book's text: the sentence whole, the chunks with
-  their glosses, the text without its vowel marks, a second face, the
-  text set vertically. Each language has its own list; the numbered
-  toggles in the reader switch them on and off.
-
 Reader
 : A book's web page, built from its chapters by **build**. What a reader
   can do is written into it when it is built, which is why an old one
   gains a new feature only with **rebuild the reader**.
+
+Review later
+: A flag on a chunk of a book or a phrase of a video, put there without stopping
+  — the cloud's **review later**, the **L** key, **⚑**, a held finger — so that its
+  card can be made, or the chunk gone back to, later. The flags are yours, kept by
+  the computer, and never written into a book ([Review later](../books/review-later.md)).
 
 Seam
 : The gap between two lines of a book or a video. A `+` there writes a
@@ -264,7 +278,7 @@ Starter
 
 Tategaki
 : Japanese (and Chinese) set vertically, in columns from the right:
-  `[ … ]{tl vertical}` in the studio, a pass of its own in a book.
+  `[ … ]{tl vertical}` in the studio, a level of its own (**Vertical**) in a book.
 
 ## Exercise decks
 

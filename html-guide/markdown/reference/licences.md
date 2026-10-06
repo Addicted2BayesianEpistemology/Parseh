@@ -37,7 +37,7 @@ its licence, which travels with it.
 | Noto Naskh Arabic 2.004 | `lib/fonts/` | © 2019–2020 Google LLC | SIL Open Font License 1.1 |
 | Noto Nastaliq Urdu | `lib/fonts/` | © 2014 Google Inc. | SIL Open Font License 1.1 |
 | Noto Serif Devanagari 2.001 | `lib/fonts/` | © 2019 Google Inc. | SIL Open Font License 1.1 |
-| TeX Gyre Pagella, Heros and Chorus | `lib/fonts/`; copied by the studio, and into this guide's pages (Chorus sets no document, only the name Parseh, in the bar of every page of Parseh and of the guide published on the web) | © B. Jackowski, J. M. Nowacki and the TeX users groups | GUST Font License |
+| TeX Gyre Pagella, Heros and Chorus | `lib/fonts/`; copied by the studio, and into this guide's pages (Chorus sets no document, only the name Parseh, in the bar of every page of Parseh, in the hub's title, and in the bar of the guide published on the web) | © B. Jackowski, J. M. Nowacki and the TeX users groups | GUST Font License |
 | MathJax 3.2.2 | `lib/mathjax/` | © The MathJax Consortium | Apache License 2.0 |
 | The Italian hyphenation patterns, `hyph-it.tex` | `markdown/exlex/assets/hyph/` | © 2008–2011 Claudio Beccari | LaTeX Project Public License 1.3 or later, or MIT |
 | Conjugation rows, and sentences with their machine translations, in the tests' data | `tests/fixtures/verbs/`, `tests/fixtures/align/` | Wiktionary's contributors; Tatoeba's contributors | CC BY-SA 4.0 (Wiktionary); CC BY 2.0 FR (Tatoeba) |

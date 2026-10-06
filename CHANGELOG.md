@@ -1,5 +1,20 @@
 ## [a0.5.0] - unreleased
 ### Added
+- ⚙ page: one panel of settings on a book, a video, a document and its editor and an exercise deck, on a computer and on a phone
+- Page zoom, 70 to 200 %, for all of Parseh, also in the installed app
+- Levels have names, per language, which you can change and which follow you
+- Diacritics: put the vowel marks of Persian and Arabic away from a book's first two levels and a video's lines
+- Review later: flag a chunk or a phrase, then go to it, test yourself, copy the list or make its card; a hub door and a page for every flag
+
+### Changed
+- Plainer names on the page's own buttons: keep going (now remembered, and following you), between repeats, hide bars, highlight, keep in view, keep video, beside the text, kana only, pinyin only
+- One colour control on every page: the studio's sheet has no theme menu of its own
+- The GitHub link at the foot of the hub, Settings and the guide leads to Parseh's repository
+- The name Parseh is set in TeX Gyre Chorus in the bars and on the hub's title
+
+### Fixed
+- Two writes at once to the settings file no longer fail
+- Colours set on a phone's document page repaint its sheet
 
 ## [a0.4.4] - 2026-10-06
 ### Added

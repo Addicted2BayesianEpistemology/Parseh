@@ -113,7 +113,12 @@ and the cookie when there is none — in their `<head>`, before anything is draw
 (`deckroutes.MODE_SCRIPT`, which every deck template takes as `{{MODE_SCRIPT}}`),
 and `decks.js` keeps the switch from there on (`bindMode`: stored, mirrored in the
 cookie, drawn, and followed when another tab changes it). The studio's own pages
-need nothing yet. In JavaScript, the reading is:
+read it from `<html data-mode>` and the gear's *Interface* group (a0.5.0,
+`markdown/app/static/gear.js`, on `lib/pagesettings.js`) sets it the same way the
+switch does: the stored value, the cookie, `html[data-mode]` and a `parseh:mode`
+event -- the Browser | Mobile switch left the bars of the pages that have a gear (a
+document, the editor, a deck, studying it, cramming it) and lives there; the hub's
+and the decks' own list keep theirs in the bar. In JavaScript, the reading is:
 
 ```js
 function parsehMode() {
@@ -267,20 +272,22 @@ mobile mode:
 * **The header is laid out again, for a thumb.** Its rows stop being boxes
   (`display: contents`), so each control is an item of the header, placed by
   `order`. The first line is the way out and what a reader reaches for: the
-  hub, the shelf, ☰ the contents, Aa the text size, and ⋯ — five 48px
-  targets, which fit a 320px phone, whatever the book and however the phone is
+  hub, the shelf, ☰ the contents, Aa the text size, and ⚙ the page's settings — five
+  48px targets (and ⚑ later, beside them, once the book has a flag), which fit a 320px phone, whatever the book and however the phone is
   held. The recording is not moved from the header any more: ▶ leaves it (it
   stays on the page, unshown, as the button the dock presses) and the dock
   below does the moving.
-  ⋯ opens the rest under it, a group to a line, each with a line saying what
-  it is: *Passes* (the pass buttons, gloss, hover), *Listening* (continuous,
-  loop and its gap, stop at a change, hover ⏸, how far ↺ and ↻ move, where the
-  recording is (0:12 / 3:40), listen and its follow and scroll, the seek),
-  *Looking a word up* (the dictionary and its definitions, where a dictionary
-  is installed), *This page* (the theme, putting the bars away, the switch). A
-  group with nothing this book offers has no line. Open, the controls scroll
-  inside the header, never taller than the screen — and the dock is not drawn
-  while they are open, since the header then holds every control the page has.
+  ⚙ opens the rest as ONE sheet from the foot of the screen, half its height, the text
+  still showing above it (a0.5.0; `lib/pagesettings.js`, filled for a reader by
+  `lib/gear-reader.js`, which drives the reader's own controls from its rows, so that
+  every one of them stays in the DOM): *Levels & reading* (the levels, each with its tick
+  and its name, Diacritics, gloss, the cloud, hide the bars), *Listening* (keep going,
+  repeat and the pause between repeats, wait at each new chapter, pause while a gloss is
+  open, how far ↺ and ↻ move, the speed, listen on its own), *Looking a word up* (the
+  dictionary, its definitions and the way to get one), *Text*, *Zoom*, *Colours* and
+  *Interface* (the switch, and the Keep buttons: *Away from the computer*). A group with
+  nothing this book offers is not drawn. While listening on its own, a second line under
+  the first holds highlight, keep in view, where the recording is (0:12 / 3:40) and the seek.
 * **The dock: the recording, under the thumb** (`lib/narrctl.js`, the owner's
   choices of 2026-09-22). A narrated book floats three buttons at the foot of
   the screen, in the two corners a thumb owns without the hand shifting its
@@ -294,13 +301,13 @@ mobile mode:
   at the first touch, key or wheel — a page that scrolls *itself*, as this one
   does all the while a narration plays, is not a touch, so they do not stay
   bright over the text being read. ⏯ is the reader's own ▶ pressed: everything
-  play does — continuous, the loop, the fold ahead, the reading place — stays
+  play does — keep going, the loop, the fold ahead, the reading place — stays
   the reader's own business, and the dock only mirrors whether the sound is
   going.
 * **↺ and ↻ move the recording** back and on by so many seconds: ten, until
   told otherwise. **Holding either one opens the seconds to choose from —
-  5 · 10 · 15 · 30 · 60** — and because a hold cannot be seen, the *Listening*
-  group under ⋯ shows the same row, and the first tap of ↺ or ↻ says "hold ↺
+  5 · 10 · 15 · 30 · 60** — and because a hold cannot be seen, the gear's *Listening*
+  group shows the same row (*Skip distance*), and the first tap of ↺ or ↻ says "hold ↺
   or ↻ to choose the seconds", once and never again (`bk_skiphint`). The
   number is one for every book, kept in this browser as `bk_skip` beside the
   reader's gap and rate. The reader plays by subparagraph, so the move takes
@@ -314,13 +321,10 @@ mobile mode:
   it stays paused. A book with no narration has no dock and no row.
 * **hover ⏸: the narration waits while a gloss is open** (a0.4.1; the owner,
   2026-09-25 and 2026-09-28; `lib/mobilereader.js`, "pause on touch"). The
-  video's switch (`#hoverpause`, the same words and glyph as
-  `youtube/lib/player.html`, whose 350 ms grace it keeps), in the header's
-  first row of BOTH modes -- beside the reader's own *hover* in the browser
-  mode, under ⋯ in *Listening* here (`order:35`, after stop at a change) -- and
-  not drawn in a book with no narration (`body.noaudio`, so a Persian, Arabic,
-  Japanese, Hindi or Chinese book with no recording grows no *Listening* line
-  for it; the header is an LTR island, so nothing else differs by language).
+  video's switch (`#hoverpause`, whose 350 ms grace it keeps), made here in BOTH modes
+  and kept in the header out of sight, since the gear's row *Pause while a gloss is
+  open* (under *Glosses in a cloud*) presses it -- and not drawn in a book with no
+  narration (`body.noaudio`: the gear has no row for it there either).
   **Off until it is turned on, and kept on THIS device only**: `bk_hoverpause`,
   '1' or '0', in `localStorage` -- never in `prefs.KEYS`, so nothing on the
   computer changes, and one device's choice cannot flip another's. With it on, the reader's
@@ -342,7 +346,7 @@ mobile mode:
   a late model (`cloudFor` emptied, `cloudC` still set) is not a new open.
   **Loop's wait** (the audio paused, playback in the reader's `waiting` timer,
   up to five seconds): the cloud takes the timer and the grace gives it back
-  as `playSub(cur, false)`; continuous mode's tenth of a second is left alone.
+  as `playSub(cur, false)`; keep-going's tenth of a second is left alone.
   **The reader's own sheets** (browser mode: cards, the chunk's editor, the
   fold, the LLM gloss, the narration's, the sections', the downloads') each
   record whether the narration was playing and put it back themselves; one up
@@ -367,8 +371,8 @@ mobile mode:
   meaning it, and the chip follows the sound instead of fighting it.
 * **The header gets out of the way at every width**: down, it goes; the
   smallest move up brings it back (parseh.js `bars()`, which the mobile mode
-  runs whatever the width). It holds still while ⋯ is open
-  (`<body data-bars-held>`). The dock needs no such hold: it floats, and stays
+  runs whatever the width). It holds still where something needs it to
+  (`<body data-bars-held>`; the dictionary's sheet holds it with a class of its own). The dock needs no such hold: it floats, and stays
   wherever the page goes.
 * **The reading place and the settings are the toolbox's** (`lib/prefs.py`,
   `lib/prefs.js`, `/__prefs`, `config/prefs.json`). The place per book — which
@@ -437,7 +441,7 @@ mobile mode:
   reader's own listeners hear them: a modifier-click on a word (a card) and E
   (the chunk's editor). A plain click, a tap and a shift-click (a copy) are the
   reader's as they always were.
-* **Reading is untouched**: the passes, the glosses and the gloss cloud (a tap
+* **Reading is untouched**: the levels, the glosses and the gloss cloud (a tap
   opens it in hover mode), the narration in step, the contents, the notes
   between two lines (the viewer opens the **bare note page** — the note on the
   studio's own sheet and nothing else; one that holds an exercise opens the
@@ -557,10 +561,10 @@ mobile mode:
   words]`), not from the page, which holds only the chapters fetched so far;
   a chapter the reader fills later (`fillChapter` takes its `data-part` off)
   is marked by a MutationObserver as it arrives.  `lib/mobile.css` draws the
-  mark: where nothing is underlined (a book's passes; in hover mode its passes
+  mark: where nothing is underlined (a book's levels; in hover mode its levels
   but the first) a 1px dotted `--faint` underline on the glossed chunks;
   where every phrase already wears that underline (a video's transcript, a
-  book's pass 1 in hover mode) the unglossed KEEP it and the glossed wear it
+  book's first level in hover mode) the unglossed KEEP it and the glossed wear it
   in `--dim` -- over the subtitles' black, a near white.  Nothing is written
   in the browser mode, where `tests/player_words.mjs` compares the transcript
   byte for byte.
@@ -607,12 +611,14 @@ phone really holds.
 book's reader has one:
 
 * the header is **one line** — the hub, the channel, what this video is, Aa, ⛶,
-  ? and ⋯ (the title has no room at 320px and is left out there; it is the
+  ? and ⚙ (the title has no room at 320px and is left out there; it is the
   title that gives way, `flex:1 1 0`, so the line stays one line down to 320) —
-  and ⋯ opens the rest under it, a group to a line: *Following the video*
-  (follow, hover ⏸, the reading, pin), *Looking a word up*, *This page* (the
-  theme, the switch). **Aa**, the text size, is on the first line as it is in a
-  book's reader, one tap (a0.4.0; it was under ⋯). What writes the video or administers
+  and ⚙ opens the rest as one sheet from the foot, as in a book's reader
+  (a0.5.0): *Watching & reading* (keep in view, pause while a gloss is open, the
+  reading, Diacritics, keep the video in view, the lines around), *Looking a word up*,
+  *Playback* (the skip, the speed), *Text*, *Zoom*, *Colours*, *Interface* (the switch and
+  *Use it without the computer*). **Aa**, the text size, is on the first line as it is
+  in a book's reader, one tap, and opens the sheet at *Text*. What writes the video or administers
   it is not there at all: its details, the caption timings, the download, the
   dictionary setup, stop, and the cloud's card, edit and colour marks
   (`#cloud .colrow` and its status line `.cstat` -- the rule once named them
@@ -724,7 +730,8 @@ both layouts (`markdown/app/templates/*`), its head says which to draw
 (`deckroutes.MODE_SCRIPT`), `decks.js` keeps the switch and the theme, and
 `markdown/app/static/mobile.css` lays the mobile one out in the studio's own
 colour tokens, so paper, dark and sepia carry over. The mobile bar has the way
-home, the way up (the decks, the deck), the switch and the theme.
+home, the way up (the decks, the deck) and the theme — and, on a deck, ⚙, whose
+*Interface* group holds the switch (the decks' own list keeps it in its bar).
 
 * **The decks**: the chips in one row, filtering the decks; each deck with what
   is due in it and its two doors, *Study* and *Open*, the whole width (two decks
@@ -746,7 +753,7 @@ home, the way up (the decks, the deck), the switch and the theme.
   added in the browser interface, and draws no list. No rename, add, export,
   options or delete.
 * **Studying**: the exercise has the screen — **no bar over it**; the deck's
-  name and what is left are one line, with ‹ back to the deck at its start. What
+  name and what is left are one line, with ‹ back to the deck at its start and ⚙ at its end. What
   to do next is one box (`.dk-answerbar` in `study.html`, around the actions and
   the ratings; nothing in the browser layout) and the answering button is always
   in the same place in it: *Check* or *Show answer*, and, the answer back,
@@ -784,9 +791,10 @@ On the decks and a deck the bar gets out of the way on the way down at every
 width, as the toolbox's own mobile pages' does (`decks.js`, `bindBarFollow`,
 from 560px up; `app.js` does it below).
 
-The theme button is the toolbox's ◐, cycling `parseh_theme`; the studio's pages
-follow that preference until a theme is picked in the studio's own panel, so
-pressing ◐ lets such a pick go and the studio follows the toolbox again.
+The theme button is the toolbox's ◐, cycling `parseh_theme`, and the studio's pages
+follow that preference like every other page — they load `lib/prefs.js` since a0.5.0, so
+the theme follows the person there too, and one function paints it (the sheet has no
+theme menu of its own any more; ◐ and the gear's *Colours* both call it).
 
 These stay browser pages only, with no mobile version planned, because what
 they are for is making or administering something: adding a book or a video
@@ -795,8 +803,8 @@ prompt pages, the Anki sync (`/anki/sync/`) and the clip tray (`/clips/`). A
 link to one of them from a mobile page still opens it — in its browser version.
 The reading help (`/settings/reading-help/`, once `/lookup/`, which redirects
 there) moved into Settings (TO-DO §11.10) and, like its sibling Network,
-carries the phone's bar; the mobile hub still has no door to it (a reader's
-**reading help** link and a cloud's **Set any of them up** reach it). Getting
+carries the phone's bar; the mobile hub still has no door to it (the gear's
+**Get a dictionary for this language →** and a cloud's **Set any of them up** reach it). Getting
 a dictionary is not administering by the rule Settings now writes down in
 `lib/settingspage.py`: a setting is risky — and changed on the computer
 alone — when it changes who may reach Parseh, what it exposes, or what it
@@ -928,8 +936,9 @@ so a book works with the computer asleep, off, or a train away.
   book whose recording was `audio/audio.webm` was offered no recording at all
   until 2026-09-23, because `.webm` is a film's extension.
 * **Keep on this phone** (`lib/keep.js`) sits in the row the page names with
-  `data-keep-slot` — the deck's actions, the document's toolbar; under ⋯ with
-  the rest of *This page* where a page names none. The slot's value is the
+  `data-keep-slot` — the deck's actions, the document's toolbar; in the gear's last
+  group where a page names none (*Away from the computer* in a reader, *Use it without
+  the computer* in a player). The slot's value is the
   class that page dresses its own buttons in, so the buttons stand in the row
   looking like the ones beside them. It says what the text costs, lists the
   recordings to pick one by one — a narrated book is hundreds of megabytes,

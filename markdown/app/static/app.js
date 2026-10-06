@@ -1961,8 +1961,11 @@ function cycleTheme() {
 }
 function bindStudioLook() {
   paintTheme();
-  // delegated, so a ◐ a page draws later is wired the moment it exists
+  // delegated, so a ◐ a page draws later is wired the moment it exists.  THE GUIDE EMBEDS THIS SCRIPT for its exercises
+  // (data-page="guide") and its ◐ is its own (html-guide/assets/guide.js): a second handler on the same button turned
+  // every click into two steps of the cycle, so there it is left to the guide
   document.addEventListener("click", e => {
+    if (PAGE === "guide") return;
     if (e.target.closest && e.target.closest("[data-parseh-theme]")) cycleTheme();
   });
   addEventListener("storage", e => {

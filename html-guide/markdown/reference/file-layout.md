@@ -281,7 +281,7 @@ touches one.
 
 | Path | What it is |
 |---|---|
-| `prefs.json` | Each book's reading place, and the settings that follow you from device to device: the narration's speed, its gap, how far ↺ and ↻ carry, the theme. |
+| `prefs.json` | Each book's reading place; the settings that follow you from device to device — the narration's speed, its gap, how far ↺ and ↻ carry, whether a chapter's start waits (`bk_stopbnd`), whether the recording goes on into the next line (`bk_cont`), the theme, and the names you gave the levels (`bk_lvl:<language>:<level>`, one key each); and, in a section of its own, `later`, the chunks you flagged to [review later](../books/review-later.md): a record for each, with the chunk's text and gloss and where it is, and a mark for each removal that stays 90 days so that a device that was away cannot bring it back. It is the computer's and no book's, so no bundle carries it. Two pages writing it at once cannot cross: the file is written through a lock. |
 | `network.json` | Who may reach Parseh (the doors of **Settings → Network**, and the ranges and names you added), its port, the certificate you gave it if any, and **every device you let in**, each with the secret token it carries in a cookie. Whoever has this file can pass for those devices: keep it as you would a key. |
 | `languages.json` | The languages added on this machine ([Adding a language](../lookup-and-languages/adding-a-language.md)); there is none until you add one. |
 | `llm.json` | The host-local LLM endpoint, selected model, context budget and private API key ([LLM Integration](../lookup-and-languages/llm-integration.md)). Never synced or shipped; keep it as you would a key. |

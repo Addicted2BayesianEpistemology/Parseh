@@ -129,10 +129,10 @@ and all ([Reading a book nobody has glossed](doc:Reading a book nobody has gloss
 **red**, **blue**, **orange**, **green** — a chunk carries at most one, and
 **none** takes it off.
 
-**What they do.** A colour reaches **pass 1 only** — the whole sentence,
+**What they do.** A colour reaches **the first level only** — the whole sentence,
 before the chunks and their glosses — on screen and in the printed PDF
-alike. Pass 1 is your own first attempt at the passage, made before any
-help arrives, and a mark in the chunks or the bare pass would give the
+alike. The first level is your own first attempt at the passage, made before any
+help arrives, and a mark in the chunks or the plain level would give the
 answer away.
 
 **What they do not.** Nothing else at all. No tool reads a colour, no card

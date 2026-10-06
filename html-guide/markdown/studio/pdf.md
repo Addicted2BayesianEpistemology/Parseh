@@ -33,7 +33,7 @@ What a build uses:
 
 - **The document as it is saved.** Save in the editor first: the build
   reads the stored Markdown, not the editor's.
-- **The target-language size** of the typography bar — the slider named
+- **The target-language size** of the ⚙ panel — the **Persian text size** slider, named
   after the language — as the size of the target script in the PDF. Set
   the sheet the way you want the page and the PDF follows.
 - **The PDF options** — the print size and black and white — below.

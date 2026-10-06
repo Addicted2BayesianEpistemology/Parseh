@@ -652,13 +652,16 @@ becomes a heading above the caption it belongs to; the words that make a
 line a chapter marker or a duration line (`1 minuto e 6 secondi`, `۱ دقیقه
 و ۳ ثانیه`) come from every language's entry in the registry.
 
-In the player: **follow** keeps the playing caption in view, **hover ⏸**
-pauses the video while a gloss cloud is open, **✱ notes** lights every phrase
+In the player: **keep in view** keeps the playing caption in view, **✱ notes** lights every phrase
 that carries a note and counts them, with **‹ ›** to walk from one to the next
-(browser interface only, and off every time the page opens), **pin** keeps the video stuck
-under the header while you scroll, **◐** cycles light / dark / sepia — one setting for the whole toolbox,
-**Aa** opens the text-and-margins panel (the target text — the slider is
-labelled with the language's name — the gloss cloud, the column width, the
+(browser interface only, and off every time the page opens), **keep video** keeps the video stuck
+under the header while you scroll, **beside the text** puts it in a column of its own, **◐** cycles light / dark / sepia — one setting for the whole toolbox,
+**⚙ page** opens the page's panel (a0.5.0: **Pause while a gloss is open**, the
+dictionary's definitions, **Diacritics**, the video's size, the skip and the speed, the
+text sizes, the zoom, the colours -- each row a name and a sentence, and each group saying
+whether it is kept on this device or follows you), **Aa** opens that panel at its **Text**
+group (the target text — the slider is labelled with the language's name, as **Persian text
+size** — the gloss cloud, the column width, the
 leading — remembered per browser, like the studio's sliders), and **⏻**
 stops the server (every page of Parseh has that button).
 The little pill under the video is a **resize grip**: drag it down for a

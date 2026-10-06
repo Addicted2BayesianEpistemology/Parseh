@@ -1,16 +1,16 @@
 ---
 title: The document page
 weight: 7
-description: A document as a reader sees it — its bars, typography, contents, the documents that link to it, downloads, Duplicate and Delete.
+description: A document as a reader sees it — its bars, the ⚙ panel with its typography, contents, the documents that link to it, downloads, Duplicate and Delete.
 ---
 
 A click on a card in the library opens the document's page,
 `/studio/doc/<id>`: the document typeset as a sheet in the middle of the
 window, with the same colours, numbered sections, lemma headings and
 tables its PDF will have. Three bars stand over it — the top bar, the tags,
-and the typography — and every one of them can be put away.
+and the toolbar — and every one of them can be put away.
 
-![A document page with its three bars, and the "Linked from" drawer open on the right](shots/linked-from.png)
+![A document page with its three bars — the top bar, the tags and the toolbar with Contents, Linked from, Glosses, Aa and Print — and the "Linked from" drawer open on the right](shots/linked-from.png)
 
 ## The top bar
 
@@ -27,6 +27,9 @@ From the left: **Parseh** (the hub), **← Library**, the document's title
 - **Download ▾** — see [below](#download).
 - **⋯** holds **Duplicate** and **Delete document**.
 - **Stop server** stops Parseh, after asking.
+- **◐** is the colour scheme, one for the whole toolbox, and **⚙ page** opens the page's
+  panel — its text sizes, the exercises' two switches, the zoom, the colours and the
+  interface ([The ⚙ settings of a page](../getting-started/page-settings.md#a-documents-gear-and-the-editors)).
 
 ## Tags {#tags}
 
@@ -39,22 +42,24 @@ filters find the document.
 On the right of the same bar are the badges of the last PDF build: see
 [Printing to PDF](pdf.md#the-badges).
 
-## Typography: the third bar
+## The third bar, and the page's panel {#typography-the-third-bar}
 
-The third bar sets how the sheet looks. Every setting takes effect as you
-move it.
+The third bar holds the tools of the page — **☰ Contents**, **↩ Linked from**,
+**⇄ Glosses**, **Aa** and **Print**, which prints the page as it is set, without the bars. How the sheet looks is
+set in the panel behind **⚙ page**, and **Aa** opens that panel at its **Text** group, on
+every width. Every setting takes effect as you move it.
 
-| Control | What it sets |
+![The ⚙ panel open on a document: the Text group, with the Persian text size, the Latin text size, the text width, the line spacing and the headword size](../getting-started/shots/gear-document.png)
+
+| Row | What it sets |
 |---|---|
-| **Persian** (the target language's name) | the size of the target language's script relative to the Latin text, from 0.8× to 2.6×; the same knob the PDF build uses as its scale |
-| **Latin** | the size of the Latin text, 13 to 23 pixels |
-| **Width** | the width of the text column, 420 to 1,400 pixels |
-| **Leading** | the space between lines, 1.15 to 2 |
-| **Lemma** | the size of the big lemma headings, 2.2× to 4.6× |
-| **justify** | justified text, hyphenated, as in the PDF — or ragged |
-| **Paper / Sepia / Dark** | the page's theme |
-| **Reset** | everything back to the PDF's defaults |
-| **Print** | prints the page as it is set, without the bars |
+| ***Persian* text size** (the target language's name) | the size of the target language's script relative to the Latin text, from 0.8× to 2.6×; the same knob the PDF build uses as its scale |
+| **Latin text size** | the size of the Latin text, 13 to 23 pixels |
+| **Text width** | the width of the text column, 420 to 1,400 pixels |
+| **Line spacing** | the space between lines, 1.15 to 2 |
+| **Headword size** | the size of the big headwords of the dictionary-style entries, 2.2× to 4.6× the text size |
+| **Justify the text** | justified text, hyphenated, as in the PDF — or ragged |
+| **Put the text back to normal** | every size back to the one the PDF starts from |
 
 The target size starts where the language's script looks right beside
 Latin text — 1.52× for the Arabic script, 1.20× for Japanese, Chinese and
@@ -65,11 +70,18 @@ yourself and it keeps the new proportion from then on.
 The settings are remembered for the document, in this browser, and the
 last ones you set are where every document you have not set yourself
 starts — the target size only among languages of the same script, so a
-Persian size never reaches a Japanese page. The theme follows the
-toolbox's ◐ theme until you pick one here.
+Persian size never reaches a Japanese page. The sheet has no theme of its own: it is
+painted in the toolbox's colours — ◐, or **Colours → Colour scheme** in the panel —
+and follows them at once.
 
-**⌃ bars**, at the end of the bar, takes all three bars away and leaves one
-faint **⌄ bars** in the corner to bring them back: the whole window for the
+The panel's other groups: **Exercises** has **Hide transliterations**, which hides the
+line that spells a word in Latin letters on every flashcard, and **Drag to answer**, for
+the exercises whose blocks are put in order; **Zoom** makes the whole page larger or
+smaller; **Colours** and **Interface** are the toolbox's own.
+
+**⌃ hide bars**, in the toolbar — **Hide the bars**, in the panel's **Page** group —
+takes all three bars away and leaves one
+faint **⌄ show bars** in the corner to bring them back: the whole window for the
 text. That choice holds for every document, since it is a way of reading
 rather than a property of a page.
 
@@ -156,10 +168,11 @@ leave the page and come back.
 
 On a narrow screen the top bar and the typography bar are pinned to the top
 of the window, and both go away as the page moves down and come back on the
-smallest move up. The typography bar keeps only **☰ Contents**,
-**⇄ Glosses**, **↩ Linked from** and **Aa**; **Aa** opens the typography
-controls under them, and closes them again. **⌃ bars** sits there with the
-controls. The top bar's buttons scroll sideways when they do not fit.
+smallest move up. The toolbar keeps **☰ Contents**,
+**⇄ Glosses**, **↩ Linked from** and **Aa**; **Aa** opens the page's panel at its text
+sizes, as a sheet from the foot of the screen, and closes it again. The **⚙** sits in the
+top bar, after **◐**; the **Browser | Mobile** switch is in the panel's **Interface** group. The top bar's buttons scroll sideways when they do
+not fit.
 
 **↑ Top**, in the lower-left corner, takes a long document back to its
 beginning; it appears once you have scrolled some way down, on every

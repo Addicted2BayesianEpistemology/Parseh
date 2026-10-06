@@ -185,7 +185,7 @@ target: zh
 
 In the reading view an entry is a band across the page between a rule
 above and a thinner one below: the headword on the left, in the target
-face, as large as the typography bar's **Lemma** slider says; on the
+face, as large as the ⚙ panel's **Headword size** slider says; on the
 right the reading in grey, the transliteration in italics in the accent
 colour, and the origin small and grey under it. Each entry is listed in
 **☰ Contents** with its transliteration. The transliteration and reading are

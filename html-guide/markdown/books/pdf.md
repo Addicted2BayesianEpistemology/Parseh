@@ -5,8 +5,8 @@ description: Building a book's PDF from the pages, following the build, where th
 ---
 
 Every book has a printed edition beside its reader: a PDF set by LuaLaTeX,
-with the same passes as the reader, subparagraph by subparagraph, the
-colours on pass 1, a title page and a table of contents. It is built from
+with the same levels as the reader, subparagraph by subparagraph, the
+colours on the first level, a title page and a table of contents. It is built from
 the same chapter files as the reader, so it says what they say — once it has
 been built since they changed.
 

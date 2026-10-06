@@ -37,7 +37,8 @@ the videos have no mobile version of their own yet.
 
 1. **Find a video**: pick a channel on the videos page, then a video.
 2. **Watch and read**: hover a phrase for its gloss; click a line to hear
-   it again; turn on **hover ⏸** to have the video wait while you read.
+   it again; turn on **Pause while a gloss is open** (in the ⚙ panel) to have the video wait while you read, and
+   press **L** on a phrase to flag it for later ([Review later](../books/review-later.md)).
 3. **Add a video**: the **＋ Add a video** card asks where the video is and
    who writes the glosses — an LLM whose answer the page checks, or you,
    in the player.
@@ -53,8 +54,8 @@ the videos have no mobile version of their own yet.
 - [The video index and channels](finding-a-video.md) — the videos page,
   the channels, the cards and what their tags say, taking a video off the
   shelf.
-- [The video player](the-player.md) — every control in the bar, reading a
-  transcript, side by side, the grip, phones.
+- [The video player](the-player.md) — every control in the bar and the ⚙ panel, reading a
+  transcript, beside the text, the grip, review later, phones.
 - [Reading help](reading-help.md) — the dictionary under a phrase nobody
   has glossed, the definitions, the readings of Japanese and Chinese, and
   **Decompose Kanji**.

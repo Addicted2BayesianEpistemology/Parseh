@@ -99,6 +99,20 @@ a line under it saying that the player works when the guide is served. A
 narrow card, as on a phone, says only **YouTube** and the start time.
 Vimeo's player plays from the disk too.
 
+## The screenshots of Parseh's own pages
+
+The pictures of Parseh's pages in this guide are not drawn by hand: a script in the
+Parseh folder, `tests/guide_shots.mjs`, takes them from the real pages. It starts the
+real hub on a temporary toolbox — the fixture books, a video with a film to play, a few
+documents and decks — and drives a real Chromium the way a person does, with a mouse at
+a computer's size and a finger at a phone's, and saves each picture where its page
+expects it, in `html-guide/markdown/<section>/shots/`. Run it with the toolchain the
+tests use (`deno run --allow-all tests/guide_shots.mjs`; `GUIDE_SHOTS_ONLY=reader` retakes
+the pictures it names, and `GUIDE_SHOTS_OUT=<folder>` saves them elsewhere to be looked
+at first), look at every file it saves, and compile the guide again. Nothing of your
+books, videos or settings is read or written: everything it opens lives in a temporary
+folder, which it removes.
+
 ## Making a GIF
 
 A GIF shows a thing being done better than a paragraph does. Record the

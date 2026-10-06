@@ -2,47 +2,51 @@
 title: What differs, language by language
 linkTitle: Language by language
 weight: 10
-description: Passes, readings, words, vertical text, verb entries, transliteration schemes and the reading help — everything that is not the same in all eleven languages.
+description: Levels, readings, words, vertical text, verb entries, transliteration schemes and the reading help — everything that is not the same in all eleven languages.
 ---
 
 The doors, the buttons and the file formats are the same for every
 language. This page is everything that is not: what each language needs to
 be read, and what each part of Parseh does about it.
 
-## The passes of a reading edition
+## The levels of a reading edition
 
-A reading edition gives each passage several times — **passes** — and how
+A reading edition gives each passage several times — as **levels** — and how
 many, and what each one is, depends on the language. The reader shows one
-button per pass in its header, numbered as below and captioned *which
-passes you see*; each button's tooltip is the pass's title, and turning one
-off hides that pass.
+button per level in its header, named as below and captioned *levels*; each
+button's tooltip says what the level shows, and turning one off hides that
+level. The names are each language's own defaults, and a person can change
+them ([Levels and their names](../books/levels.md)).
 
-| Language | Its passes |
+| Language | Its levels, by the name on their button |
 |---|---|
-| Persian | **1** the vowelled attempt · **2** chunks and glosses · **3** bare naskh · **4** nastaliq |
-| Arabic | **1** the vowelled attempt · **2** chunks and glosses · **3** unvowelled, as Arabic is written |
-| Japanese | **1** with furigana over each word · **2** the reading alone, in kana · **3** chunks and glosses · **4** plain, as Japanese is written · **5** vertical (tategaki) |
-| Chinese | **1** with pinyin over each word · **2** the reading alone, in pinyin · **3** chunks and glosses · **4** plain, as Chinese is written · **5** vertical |
-| Italian, French, German, Turkish, English, Spanish, Hindi | **1** the sentence · **2** chunks and glosses |
+| Persian | **With vowels** the vowelled attempt · **Chunks** chunks and glosses · **Plain** bare naskh · **Nastaliq** nastaliq |
+| Arabic | **With vowels** the vowelled attempt · **Chunks** chunks and glosses · **Plain** unvowelled, as Arabic is written |
+| Japanese | **Furigana** with furigana over each word · **Kana only** the reading alone, in kana · **Chunks** chunks and glosses · **Plain** plain, as Japanese is written · **Vertical** vertical (tategaki) |
+| Chinese | **Pinyin** with pinyin over each word · **Pinyin only** the reading alone, in pinyin · **Chunks** chunks and glosses · **Plain** plain, as Chinese is written · **Vertical** vertical |
+| Italian, French, German, Turkish, English, Spanish, Hindi | **Sentence** the sentence · **Chunks** chunks and glosses |
 
 Why these and not others:
 
-- **A bare pass exists only where it shows something pass 1 does not.**
+- **A plain level exists only where it shows something the first does not.**
   Persian and Arabic are written in the reading editions with their vowel
-  marks (harakat) — pass 1 is *the vowelled attempt* — and the bare pass
+  marks (harakat) — the first level, **With vowels**, is *the vowelled attempt* — and **Plain**
   takes them off, as the languages are normally printed. Japanese and
   Chinese take away the readings over the words. The Latin-script languages
   and Hindi have nothing to take off (Devanagari writes its vowels), so
-  their pass 1 already shows all a bare pass could.
+  their first level, **Sentence**, already shows all a plain level could.
 - **A fourth face** is Persian's alone: the passage again in **nastaliq**,
   the calligraphic hand of Persian poetry and titles.
-- **Japanese and Chinese have a reading pass and a vertical pass.** In
-  pass 1 each word of a chunk wears its reading over it, where the chunk
+- **Japanese and Chinese have a reading level and a vertical level.** In
+  the first level each word of a chunk wears its reading over it, where the chunk
   carries its word line (a Japanese chunk without one wears its kana over
-  the whole of it); pass 2 is the reading alone — the passage in kana, or
+  the whole of it); **Kana only** (**Pinyin only**) is the reading alone — the passage in kana, or
   in pinyin, as it is said, with the punctuation that ends each chunk —
-  and pass 5 sets the passage in columns read top to bottom and right to
+  and **Vertical** sets the passage in columns read top to bottom and right to
   left.
+- **Persian and Arabic can put the marks away.** **Diacritics**, in the ⚙ panel, takes
+  the very marks the plain level leaves off from the first two levels, and from a
+  video's lines — on the screen only ([Levels and their names](../books/levels.md#diacritics)).
 
 ## Readings, words and columns
 
@@ -51,15 +55,15 @@ Why these and not others:
 | **Transliteration line** | rōmaji (Hepburn) | pinyin, with tone marks | see below |
 | **A reading beside it** | **kana**: every glossed chunk carries it, and the checkers require it | none — pinyin *is* the transliteration | none |
 | **Words** | every chunk may carry a **word line**, `山(やま) へ 柴刈り(しばかり) に`: its words and each word's reading | the same, with pinyin: `我(wǒ) 想(xiǎng) 喝(hē) 茶(chá)` | no need: spaces already divide the words |
-| **Vertical text** | the fifth pass; a studio block with `vertical` | the same | — |
+| **Vertical text** | the **Vertical** level; a studio block with `vertical` | the same | — |
 | **No word separator** | a chunk counts as one word everywhere; the dictionary cuts it (or follows its word line) | the same | — |
 
-The word line is what the furigana of pass 1 stand over, what the
+The word line is what the furigana of the first level stand over, what the
 [dictionary](dictionaries.md) looks up word by word, and what the cloud's
 *山: I know this* buttons work by: a word you know stops wearing its reading
 wherever it appears in that book or video. The video player of a Japanese
-or Chinese video has one more button, named after the reading — **kana** or
-**pinyin** — which shows every phrase as it is said, in place of its text.
+or Chinese video has one more button, named after the reading — **kana only** or
+**pinyin only** — which shows every phrase as it is said, in place of its text.
 
 ## The transliteration, language by language
 
@@ -115,8 +119,8 @@ such a recipe.
 
 | Door | What changes with the language |
 |---|---|
-| **Book reader** | the passes above; the direction and side of the chunk column; the digits of the labels; ruby over the words of Japanese and Chinese; the **Aa** panel's first slider named after the language, and a *columns height* slider for Japanese and Chinese |
-| **Video player** | the direction and face of the transcript; the kana line of a Japanese phrase above its rōmaji; the **kana** / **pinyin** reading button for Japanese and Chinese |
+| **Book reader** | the levels above and their names; the direction and side of the chunk column; the digits of the labels; ruby over the words of Japanese and Chinese; the ⚙ panel's first slider named after the language (**Persian text size**), and a **Height of vertical columns** slider for Japanese and Chinese; **Diacritics** for Persian and Arabic |
+| **Video player** | the direction and face of the transcript; the kana line of a Japanese phrase above its rōmaji; the **kana only** / **pinyin only** reading button for Japanese and Chinese; **Diacritics** for Persian and Arabic |
 | **Studio** | which text is found by its script and which must be marked; the fonts offered by `font=` (`nastaliq` for Persian, `gothic` for Japanese); `vertical` for Japanese and Chinese; a lemma heading's reading field and a **kana** insert button for Japanese; the target-text editor's button, **✎ Persian**, **✎ Japanese**… |
 | **Reading help** | a dictionary for every language, with extra rules for Persian, Arabic, French, Italian, Japanese and Chinese; a corpus of Japanese or Chinese only after its dictionary; **Decompose Kanji** / **Decompose Hanzi** for Japanese and Chinese only; translation models only to or from English |
 | **Anki** | a pair of note types per language — *Frank Italian* and *Frank Italian Opposites*, and so on (Persian's first is *Frank YouTube Persian*) — whose first field is named after the language (*Headword* for English), with a *Reading* field for Japanese; tags `<language>-book` and `<language>-youtube` (`farsi-…` for Persian) |

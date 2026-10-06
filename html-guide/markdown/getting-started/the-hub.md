@@ -1,7 +1,7 @@
 ---
 title: The hub
 weight: 5
-description: Parseh's first page — its top bar, the language chips, the doors and what their counts say, and the three themes of the ◐ button.
+description: Parseh's first page — its top bar, the language chips, the doors (Review later among them) and what their counts say, and the three themes of the ◐ button.
 ---
 
 The hub is the page at the root of Parseh's address, `https://localhost:7654/`,
@@ -9,7 +9,7 @@ and the one the home link in the top-left corner of Parseh's pages leads
 back to — a **پ**, the first letter of the toolbox's Persian name, on most
 of them. It shows what there is and lets you pick where to go.
 
-![The hub in the browser interface: three books, a video, four studio documents and a deck of exercises](shots/hub.png){width=100 align=center}
+![The hub in the browser interface: the name in the bar and over the page, the language chips, and the first row of doors — Books, Videos, Studio and Exercises](shots/hub.png){width=100 align=center}
 
 It is made afresh each time you open it, so its counts are always today's:
 come back to it, or reload it, after adding something.
@@ -20,7 +20,7 @@ From the left:
 
 | In the bar | What it is |
 |---|---|
-| **پ Parseh** | this page |
+| **پ Parseh** | this page — the name is set in TeX Gyre Chorus, in the bar of every page of Parseh and in the hub's title |
 | *the hub* | where you are |
 | **Browser** **Mobile** | the two interfaces: which one Parseh is in, and the switch between them ([Browser and Mobile](mobile-mode.md)) |
 | **guide** | this guide ([This guide](this-guide.md)) |
@@ -65,19 +65,27 @@ Persian above it — the toolbox's own language, whatever you are learning:
 | **Studio** | the studio's library of documents, `/studio/` | how many documents |
 | **Exercises** | the exercise decks, `/exercises/` | how many decks, and how many exercises are due today |
 
-and four wide ones under them, for the work around the four:
+and five wide ones under them, for the work around the four:
 
 | Door | Leads to | What it says |
 |---|---|---|
+| **⚑ Review later** | the chunks you flagged while reading or watching, `/later/` ([Review later](../books/review-later.md)) | how many chunks are flagged — for the language picked, when a chip is — or *nothing marked yet* |
 | **⇆ Anki** | the card store and its sync with Anki, `/anki/sync/` | how many cards and decks the store holds — one store for every language |
 | **✂ The clip tray** | the recordings and pictures cut for cards, `/clips/` | how many clips wait there, or *the tray is empty* |
 | **🔍 Reading what nobody has glossed** | the dictionaries and the rest, in Settings, `/settings/reading-help/` | how many languages have a dictionary, and which, or *no dictionary yet* |
 | **⚙ Settings** | what this Parseh is set to, `/settings/`: which version it is, and its doors — **Reading help**, **Network**, **Updating Parseh** ([Updating Parseh](updating.md)), **LaTeX drawings** **Speech to text** ([Speech to text](../lookup-and-languages/speech-to-text.md)) **LLM Integration** ([LLM Integration](../lookup-and-languages/llm-integration.md)), **LM likelihood** ([LM likelihood](../lookup-and-languages/lm-likelihood.md)), **Your prompts** ([Your own prompts](../studio/your-prompts.md)), **Pictograms (ARASAAC)** ([Pictograms](../studio/pictograms.md)), **Skills for your chatbot** ([Skills for your chatbot](../studio/skills.md)) and **About** ([About Parseh](about.md)), and under them the two links of the foot, below | who may reach it — this computer, a VPN, the Wi-Fi ([From a phone or another computer](other-devices.md)) |
 
-A door that says 0, or *no dictionary yet*, is doing its job: it tells you
+A door that says 0, *nothing marked yet* or *no dictionary yet* is doing its job: it tells you
 there is something there you have not started using.
 
+**⚙ Settings is not the ⚙ of a page.** The door opens Parseh's own settings. The
+button **⚙ page** in the bar of a book, a video, a document or a deck opens a panel for
+that page alone, which ends with a link back to these Settings
+([The ⚙ settings of a page](page-settings.md)).
+
 ## The foot
+
+![The foot of the hub: the addresses Parseh can be reached at, the version, and the two links, GitHub and imbrunoursino.net](shots/hub-foot.png){width=80 align=center}
 
 At the bottom of the hub:
 
@@ -105,7 +113,7 @@ guide.
 
 ## The theme
 
-The **◐** button, at the top of the hub and of most pages, changes the
+The **◐** button, at the top of the hub and of every page that has a bar, changes the
 colours of the whole toolbox. Each click goes on to the next of three
 palettes:
 
@@ -120,17 +128,16 @@ light or dark — and the button's tooltip says *following the system*. From
 the first click the choice is yours, and it holds everywhere: every page
 with the button — the books and their reader, the videos and their player,
 the Anki page, the clip tray, the dictionaries' page —, the studio's and
-the exercises' pages, which have no button of their own and follow it, and
-this guide when Parseh serves it. Like the language, it is remembered by
+the exercises' pages — a document, the editor, a deck, studying it and cramming it — and
+this guide when Parseh serves it. The colours follow you: they are kept by
+the computer Parseh runs on, so every device that reaches it wears the same, and the
+**⚙ page** panel's **Colours** group, **Colour scheme**, sets them
+the same way — **Follow my device**, **Light**, **Dark** or **Sepia**. The language, by contrast, is remembered by
 each browser for itself.
 
-**The studio has a theme of its own, for when you want one.** A document's
-**Aa** settings have a theme too — **Paper**, **Sepia** or **Dark** — and
-until you pick one there, it simply follows ◐. Once you do, the choice is
-not that document's alone: the whole studio — every document, the
-library, the prompt page — and the exercise decks keep that theme from
-then on, and ◐ goes on changing only the rest of the toolbox. **Reset**,
-in the same settings, puts back Paper, not ◐.
+**The studio wears the same colours.** A document's sheet, the editor and the
+exercise pages have no theme of their own: they are painted with the colour scheme
+everything else has, at once, when ◐ or the panel's **Colour scheme** changes it.
 
 The **Working…** panel appears at the top of the hub, above its name,
 whenever the server is busy — [The Working… indicator](working-indicator.md)

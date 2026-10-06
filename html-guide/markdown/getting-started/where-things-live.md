@@ -80,8 +80,9 @@ Parseh/
   theme, with `parseh-packages.json`, the list of them.
 - `markdown/latex/` — **the drawings** the latex blocks became, each once:
   made again from its block when it is missing.
-- `config/` — **your settings**: `prefs.json`, each book's reading place
-  and the settings that follow you from device to device; `network.json`,
+- `config/` — **your settings**: `prefs.json`, each book's reading place,
+  the settings that follow you from device to device, the names you gave
+  the levels and the chunks you flagged to review later; `network.json`,
   who may reach Parseh, its port, and every device you let in, each with
   the secret token it carries — keep it to yourself, as you would a key;
   `languages.json`, the languages you added, when you have; `updates.json`,
@@ -180,9 +181,10 @@ Settings.
 A few things are not in the folder at all, because they are yours in one
 browser rather than the toolbox's: the language picked on the chips, the
 **Browser | Mobile** choice, the switches of the reader and the player, the
-settings of the **Aa** panels, the kanji you marked as known. Each browser
+settings of the ⚙ panels — the sizes, the levels shown, **Diacritics**, the page zoom —, the kanji you marked as known. Each browser
 keeps its own, per address, and a backup does not carry them. Where you are
-in each book, the narration's speed and its gap, and the theme are the
+in each book, the narration's speed and its gap, the theme, the names of the levels and the
+chunks you flagged to review later are the
 computer's, in `config/prefs.json`, so a phone goes on where the desk
 stopped.
 

@@ -25,9 +25,11 @@ once — no reload — and the choice holds: on every page, after a reload,
 the next time you open Parseh. Another tab open on Parseh follows the
 switch as soon as you make it.
 
-The choice belongs to the browser it was made in, as the theme does: a
-phone can be in the mobile interface while the computer stays in the
-browser one.
+The choice belongs to the browser it was made in — unlike the colours, which follow
+you: a phone can be in the mobile interface while the computer stays in the
+browser one. On the hub the switch is in the bar; on every page that has the ⚙ — a book,
+a video, a document, an exercise deck — it is in the panel's **Interface** group instead
+([The ⚙ settings of a page](page-settings.md#interface)).
 
 ## The mobile hub
 
@@ -40,7 +42,8 @@ interface the hub has:
 - the language chips in a single row that scrolls sideways, which always
   brings the picked chip into view (with a mouse, where nothing can be
   swiped, they wrap into rows instead);
-- the four doors, one under the other, large, each with its counts — the
+- the doors — **Books**, **Videos**, **Studio**, **Exercises** and **Review later** —
+  one under the other, large, each with its counts — the
   same counts as the browser hub's, following the chips in the same way;
 - **Guide**, *How the toolbox works*, which opens this guide;
 - and **As an app**, which installs the mobile interface on the phone, with
@@ -53,6 +56,7 @@ interface the hub has:
 | **Videos** | The transcript under the video, every line glossed |
 | **Studio** | Notes on the language, to read |
 | **Exercises** | Decks to study, each card when it is due |
+| **Review later** | The chunks you flagged, to come back to |
 | **Guide** | How the toolbox works |
 | **As an app** | On the home screen, on the whole screen |
 
@@ -99,7 +103,7 @@ along the foot of its card) and opens where you stopped. A book whose
 reader has never been built opens nothing: it is built in the browser
 interface, from its card in the library.
 
-The **reader** is the same page in both interfaces — the text, the passes,
+The **reader** is the same page in both interfaces — the text, the levels,
 the glosses, the narration in step — with its header laid out again for a
 thumb:
 
@@ -108,8 +112,9 @@ thumb:
 | **پ** | the hub |
 | **▤** | back to the shelf |
 | **☰** | the contents, to jump to a paragraph |
-| **Aa** | the size of the text and the glosses |
-| **⋯** | the rest, a group to a line |
+| **Aa** | opens the page's panel at the size of the text and the glosses |
+| **⚙** | the page's panel, as a sheet from the foot of the screen: the rest ([below](#the-sheet)) |
+| **⚑ later** | the chunks you flagged to review later ([Review later](../books/review-later.md)) — on the first line, with its count, once something is flagged |
 
 The narration is not in the header. On a narrated book three buttons float
 at the **foot of the screen**, in the corners a thumb reaches without
@@ -132,8 +137,8 @@ always.
 seconds**; one and two are there for going back over the phrase you have just
 heard — and **tap the speed chip** to choose how fast the narration plays
 — **0.5 · 0.6 · 0.75 · 0.9 · 1 · 1.1 · 1.25 · 1.5 · 1.75 · 2**. Both are kept
-for every book on this phone. The seconds are under **⋯**, **Listening**,
-as well, since a hold is not something you can see.
+for every book on this phone. The seconds are in the ⚙ sheet, **Listening** →
+**Skip distance**, as well, since a hold is not something you can see.
 
 On a keyboard in Mobile mode, **←** and **→** do the same back/on move as
 ↺ and ↻, by that chosen number of seconds. In a book, **Shift+←** and
@@ -141,36 +146,46 @@ On a keyboard in Mobile mode, **←** and **→** do the same back/on move as
 video has no subparagraph walker, so shifted arrows skip there too. Fields,
 menus and open sheets keep their own arrow keys.
 
-Under **⋯**: the **passes** (and **gloss** and **hover** — in hover mode a
-tap on a chunk opens its gloss), the **listening** (continuous, loop, stop
-at a change, **hover ⏸** — the narration waits while a gloss is open —, how
-far ↺ and ↻ move, where the narration has got to — *0:12 / 3:40* —, listening
-without following the text), **looking a word up** where a
-dictionary is installed, and **this page**: the theme, putting the bars away,
-and the **Browser | Mobile** switch.
+### The sheet {#the-sheet}
+
+**⚙** opens the page's settings as **a sheet from the
+foot of the screen, half its height**: the text stays on show above it, so a change is
+seen as it is made, and **✕**, the back gesture or a tap on the text puts it away. Every
+row is a finger high and says in a sentence what it does. The groups are the
+browser's ([The ⚙ settings of a page](page-settings.md#a-books-gear)): **Levels &
+reading** (the levels, **Diacritics** in Persian and Arabic, **Glosses**,
+**Glosses in a cloud** — a tap on a chunk opens its gloss —, **Hide the bars**), **Listening**
+(**Keep playing into the next line**, **Repeat this line**, **Wait at each new chapter**,
+**Pause while a gloss is open** — the narration waits while a gloss is open —,
+**Skip distance**, **Playback speed**, **Listen on its own**), **Looking a word up** where a
+dictionary is installed, **Text**, **Zoom**, **Colours**, and **Interface**, which
+holds the **Browser | Mobile** switch and **Away from the computer**. While listening on
+its own is on, a second line under the header holds **highlight**, **keep in view**, where the
+narration has got to — *0:12 / 3:40* — and the seek bar.
 
 **The gloss cloud has a dictionary button beside *copy*.** A chunk that has
-a gloss never opens the dictionary by itself, and the header's switch for it
-is under **⋯**: **dictionary**, in the cloud, opens the dictionary for that
+a gloss never opens the dictionary by itself, and the switch for it
+is in the ⚙ sheet, **Looking a word up**: **dictionary**, in the cloud, opens the dictionary for that
 chunk, in a sheet from the foot of the screen
 ([The dictionary, on a phone](#the-dictionary-on-a-phone), below). A
 video's cloud has the same button.
 
 The header slides away as you read down and comes back on the smallest move
-up — held sideways too — and stays put while **⋯** is open. The floating
-buttons stay wherever the page goes, and step aside while **⋯** is open.
+up — held sideways too. The floating
+buttons stay wherever the page goes.
 
 **The phone goes on where the computer stopped.** Parseh keeps the reading
 place of each book, the narration's speed, the pause between repetitions, how
-far ↺ and ↻ move and the theme — so a book opened on the phone is the book you
+far ↺ and ↻ move, the theme, the names you gave the levels and the chunks you flagged to
+review later — so a book opened on the phone is the book you
 were reading, at the speed you read it. It never moves you without asking: the
 book opens where *this* device left it, and a line at the foot says "On the
 computer you were at 2.1, a moment ago" with **Go there** and **Stay here**.
-What is *shown* — which passes are open, the size of the text, the margins —
+What is *shown* — which levels are open, the size of the text, the margins —
 stays with the device showing it, because a phone is not a desk.
 
-**Hover ⏸ makes a narration wait while you read a gloss.** Under **⋯**,
-**Listening**, the switch is worded and drawn as the video's. With it on, a tap
+**Pause while a gloss is open makes a narration wait while you read a gloss.** In the ⚙ sheet,
+under **Glosses in a cloud**, the switch is worded and drawn as the video's. With it on, a tap
 that opens a chunk's cloud pauses a playing narration, and closing the cloud
 lets it go on a third of a second later — so tapping the next chunk straight
 away is one pause, not a stutter. A narration you paused yourself is never
@@ -181,7 +196,7 @@ the finger that touches is not something the computer's choice should flip
 ([the same switch, in the browser interface](../books/reader.md#hover-mode-and-the-gloss-cloud)).
 
 **A finger held on a word** for half a second opens a small menu: *Copy “the
-chunk”* and *Copy the sentence* — and, in the browser interface, *Card for
+chunk”*, *Copy the sentence* and *Review later: “the chunk”* — and, in the browser interface, *Card for
 “word”*, which opens the card just as an Alt-click does on a computer. It
 works in a video's transcript too. A plain tap still plays, as it always did.
 
@@ -190,7 +205,8 @@ rest on a button to read what it does. Press it, then tap anything: the page
 says what that button does instead of pressing it. Press **?** again, or
 *done explaining*, and everything works as usual.
 
-**Keep a book on this phone** — under **⋯**, *Keep on this phone*. It says
+**Keep a book on this phone** — in the ⚙ sheet's last group, **Away from the computer**, the
+button *Keep on this phone* (a video's, **Use it without the computer**). It says
 what the text costs, and lists the recordings so you pick the ones you want
 (a narrated book can be hundreds of megabytes). Each one says **where it is
 in the book** — *chapter 2 · Sustainability · Water Resources*, or *chapters
@@ -368,9 +384,8 @@ gloss at a tap (with a mouse, as the pointer rests on it). Press it again
 for the one line. The choice is kept for every video on this phone.
 
 **The size of the words.** The transcript and the subtitles each have a size
-of their own. **Aa** on the header's first line opens the panel with the
-transcript's size, the glosses', the width and the leading — and, held
-sideways, the subtitles'. On the whole screen the header is under the
+of their own. **Aa** on the header's first line opens the ⚙ sheet at its **Text** group, with the
+transcript's size, the glosses', the width and the leading — and **Subtitle size**. On the whole screen the header is under the
 picture, so the same panel has an **Aa** of its own in the corner, beside the
 lines-around button, and shows only the subtitles' slider and the glosses':
 drag it and the subtitle grows as the video goes on playing, and the lines
@@ -391,7 +406,7 @@ inside the page, over the very word it was about.
 ![On a phone: the dictionary's sheet over a Persian book, the chunk looked up marked in the room above it; and over a Persian video under its pinned picture, where the entry takes most of the screen and covers the phrase until the sheet closes — in both, the chunk's gloss at the sheet's top, then each word with its entries, the senses numbered and the part of speech a label](shots/dictionary-sheet.png){width=80 align=center}
 
 - **What opens it.** The **dictionary** button in a chunk's gloss cloud; and, with the
-  dictionary switched on (under **⋯**, *Looking a word up*), a tap on a chunk
+  dictionary switched on (in the ⚙ sheet, **Looking a word up**), a tap on a chunk
   that has nothing written under it — no meaning, no transliteration, no
   vocabulary — which opens the sheet at once, with no cloud. A chunk with
   anything written opens its cloud, with **dictionary** beside *copy*.
@@ -418,7 +433,7 @@ inside the page, over the very word it was about.
   the chunk's cloud both close, and one going back undoes one thing.
 - **In a video, or a book read aloud.** The video, or the book's narration,
   waits, paused, while the sheet is up, and goes on when it closes — with
-  **hover ⏸** on, a third of a second after, as it does after a cloud. On the
+  **Pause while a gloss is open** on, a third of a second after, as it does after a cloud. On the
   whole screen the sheet covers the subtitles, and going back closes the
   sheet and leaves the video on the whole screen. On an Android phone in a
   browser tab, going back also makes the browser give up its own full
@@ -475,7 +490,7 @@ of your own — a tag, the ones you keep getting wrong, the ones with a word
 in them — and like every cram it leaves the scheduling as it was.
 
 Studying, the exercise has the screen: no bar over it, only the deck's name
-and what is left, with **‹** back to the deck. **Check** or **Show answer**
+and what is left, with **‹** back to the deck and **⚙** for the page's panel. **Check** or **Show answer**
 answers it, and then **Next** takes its very place: it rates the exercise
 as the answer says — **Good** when it was right or a card was turned,
 **Again** when it was wrong, the label saying which and when it comes back
@@ -500,7 +515,7 @@ Making a deck, adding, correcting, tagging or moving an exercise, setting
 one back to new, the deck's options, exporting, importing and backing up are
 the browser interface's; so is the server's stop button. **◐** at the top
 of the decks and a deck turns the theme for the whole toolbox — in the
-studio too.
+studio too — and the **⚙** has the page's sizes and the zoom.
 
 ## Held sideways
 

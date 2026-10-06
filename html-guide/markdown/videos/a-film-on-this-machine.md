@@ -214,7 +214,7 @@ instead.
 
 The player shows the browser's own video, with its own controls, where a
 YouTube video's frame would be — for a sound, [the bar above](#a-sound-instead-of-a-film) —
-and everything else — the lit line, **follow**, **hover ⏸**, a click to
+and everything else — the lit line, **keep in view**, **Pause while a gloss is open**, a click to
 replay, the clouds — works exactly the same. The film is served by Parseh
 itself, a piece at a time, which is what lets it seek anywhere at once. On
 a phone the bar fills the same place, held upright or sideways; a sound is

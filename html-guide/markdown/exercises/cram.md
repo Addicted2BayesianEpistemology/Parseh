@@ -78,6 +78,10 @@ start a practice of just those.
   the deck's page, where your selection is still ticked, ready for another
   round or for something else.
 
+The **◐** and **⚙ page** at the right end of the bar are the colours and the page's panel:
+the text sizes, the two exercise switches, the zoom
+([The ⚙ settings of a page](../getting-started/page-settings.md#an-exercise-decks-gear)).
+
 Opened with nothing selected, the cram page only says *Select exercises in
 Browse, then choose Cram exercises.*
 
