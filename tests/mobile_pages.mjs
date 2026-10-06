@@ -1207,8 +1207,10 @@ async function partVideo() {
   await shot(page, 'video-phone');
   eq(await page.evaluate(() => [document.documentElement.classList.contains('m-player'),
                                 document.body.hasAttribute('data-mobile-page'),
-                                !!document.querySelector('.m-rmore'), !!document.querySelector('.nc-dock')]),
-     [true, true, true, true], 'the player wears the mobile layer, with ⋯ and the dock at the foot');
+                                !!document.querySelector('.m-rmore'), !!document.querySelector('header > button.pg-gear'),
+                                !!document.querySelector('.nc-dock')]),
+     [true, true, false, true, true],
+     'the player wears the mobile layer, with the gear where ⋯ was (a0.5.0: and no ⋯) and the dock at the foot');
   for (const no of ['#dl', '#vidinfo', '#captimes', '#lookupset', '#sbs', '#stop', 'main > .hint'])
     assert(!(await isDrawn(page, no)), 'the player: no ' + no);
   // nor the + between two captions, "write a note here" (a0.3.2): it writes
@@ -1219,13 +1221,14 @@ async function partVideo() {
      'the transcript has its seams, each with its +');
   assert(!(await isDrawn(page, '#segs .gap .plus')), 'the player: no + between the captions to write a note with');
   allFit(await targets(page, 'header a[href], header button'), 'its header: 48px, on the screen');
-  // ⋯ opens the rest, a group to a line
-  await tap(page, '.m-rmore');
+  // the gear opens the rest, a group to a line (it took ⋯'s place; tests/gear_player.mjs drives every row)
+  await tap(page, 'header > button.pg-gear');
   await settle(page);
-  eq(await page.evaluate(() => [...document.querySelectorAll('.m-rlab')]
-       .filter(e => e.getClientRects().length).map(e => e.getAttribute('data-g'))),
-     ['following', 'looking', 'page'], '⋯ opens the groups this page has');
-  await tap(page, '.m-rmore');
+  eq(await page.evaluate(() => [...document.querySelectorAll('.pg-panel[data-pg-page=video] [data-pg-group]')]
+       .filter(e => !e.hidden && e.getClientRects().length).map(e => e.getAttribute('data-pg-group'))),
+     ['watching', 'looking', 'playback', 'text'].concat(await page.evaluate(() => window.ParsehZoom ? ['zoom'] : []), ['colours', 'interface']),
+     'the gear opens the groups this page has');
+  await tap(page, 'header > button.pg-gear');
 
   // ---- c) the dock drives the video
   await page.waitForFunction(() => window.ParsehPlayer && ParsehPlayer.ready(), null, {timeout: 20000});
@@ -1376,6 +1379,22 @@ async function partVideo() {
     i.value = v;
     i.dispatchEvent(new Event('input', {bubbles: true}));
   }, [id, v]);
+  // the gear's own slider for a field of Aa's (a0.5.0: the header's Aa opens the gear at Text)
+  const gearSlide = (row, v) => page.evaluate(([row, v]) => {
+    const i = document.querySelector(`.pg-panel[data-pg-page=video] [data-pg-row="${row}"] input[type=range]`);
+    i.value = v;
+    i.dispatchEvent(new Event('input', {bubbles: true}));
+  }, [row, v]);
+  const gearFacts = () => page.evaluate(() => {
+    const p = document.querySelector('.pg-panel[data-pg-page=video]'), r = p.getBoundingClientRect();
+    const hd = p.querySelector('.pg-head').getBoundingClientRect();
+    const at = document.elementFromPoint(hd.left + hd.width / 2, hd.top + hd.height / 2);
+    const text = p.querySelector('[data-pg-group=text]'), body = p.querySelector('.pg-body');
+    return {up: !p.hidden, l: r.left, t: r.top, r: r.right, b: r.bottom, W: innerWidth, H: innerHeight,
+            onTop: !!at && p.contains(at), old: document.querySelector('.parseh-typo').hidden,
+            atText: Math.round(text.getBoundingClientRect().top - body.getBoundingClientRect().top),
+            rows: [...text.querySelectorAll('[data-pg-row]')].filter(t => !t.hidden && t.getClientRects().length).map(t => t.dataset.pgRow)};
+  });
   const yt = () => page.evaluate(() => JSON.parse(localStorage.getItem('yt_typo') || '{}'));
   const enterFull = async () => {
     await page.evaluate(() => {
@@ -1405,19 +1424,21 @@ async function partVideo() {
      [true, true, true], 'without opening ⋯, and the header is still one line');
   await tap(page, '#typo');
   await sleep(300);
-  let pf = await panelFacts();
-  eq([pf.up, pf.onTop, pf.rows], [true, true, ['fa', 'sub', 'gl', 'width', 'lead']],
-     'Aa opens the panel over the page, the transcript\'s size and the subtitles\' and the rest, each its own slider');
-  assert(pf.t >= 0 && pf.b <= pf.H && pf.l >= 0 && pf.r <= pf.W,
-         `held sideways it is on the screen (${Math.round(pf.t)}-${Math.round(pf.b)} of ${pf.H})`);
+  let gf = await gearFacts();
+  eq([gf.up, gf.onTop, gf.old, gf.rows], [true, true, true, ['fa', 'sub', 'gl', 'width', 'lead', 'reset']],
+     'Aa opens the gear (not the old panel) at Text: the transcript\'s size and the subtitles\' and the rest, each its own slider');
+  assert(gf.atText >= 0 && gf.atText <= 14, `at its Text group (${gf.atText}px from the top of the sheet)`);
+  assert(gf.t >= 0 && gf.b <= gf.H + 0.5 && gf.l >= 0 && gf.r <= gf.W,
+         `held sideways it is on the screen (${Math.round(gf.t)}-${Math.round(gf.b)} of ${gf.H})`);
   await shot(page, 'video-size-panel-ordinary');
   const w0 = await words();
-  await slide('st-fa', 30);
+  await gearSlide('fa', 30);
   const w1 = await words();
   eq([w0.seg, w1.seg, w1.yt.fa, w1.yt.sub], [20, 30, '30px', w0.yt.sub],
      'the transcript\'s own slider moves the transcript\'s words (20 → 30px) and not the subtitles\' size, --yt-sub as it was');
-  await tap(page, '.parseh-typo .tclose');
-  eq(await panelUp(), false, '✕ closes it');
+  await tap(page, '.pg-panel[data-pg-page=video] .pg-x');
+  eq(await page.evaluate(() => ParsehGear.mounted().isOpen()), false, '✕ closes it');
+  let pf;
   // where a panel opened LOW in the screen goes: the clamp (a panel opened
   // from ⋯ in a phone held sideways ran 69px off the foot).  Aa is on the
   // first line now, so the low anchor is made here, of a button of the test's
@@ -1547,7 +1568,7 @@ async function partVideo() {
   await page.evaluate(() => { ParsehPlayer.typo.reset(); ParsehPlayer.setRate(1.5); });
   eq((await words()).yt, {fa: '20px', sub: '20px'}, 'reset puts every size back');
   // and a screen only 320px wide: the first line still holds the hub, the
-  // shelf, Aa, ? and ⋯ in one line, the title given up for them
+  // shelf, Aa, ? and the gear (⋯'s place) in one line, the title given up for them
   const tiny = await newPage({viewport: {width: 320, height: 568}, isMobile: true, hasTouch: true}, 'tiny');
   await tiny.goto(B + '/');
   await setMode(tiny, 'mobile');
@@ -1557,7 +1578,7 @@ async function partVideo() {
   eq(await tiny.evaluate(() => [document.querySelector('header').getBoundingClientRect().height < 70,
                                 getComputedStyle(document.querySelector('header .ttl')).display]),
      [true, 'none'], 'at 320px the header is one line, with the title left out');
-  allFit(await targets(tiny, 'header a[href], header button'), 'its header at 320px: Aa, ? and ⋯ 48px, on the screen, reached by a tap');
+  allFit(await targets(tiny, 'header a[href], header button'), 'its header at 320px: Aa, ? and the gear 48px, on the screen, reached by a tap');
   await shot(tiny, 'video-320');
   await tiny.context().close();
   // YouTube's own ⛶ is not offered on a phone: there is one whole screen,
@@ -1608,10 +1629,11 @@ async function partVideo() {
      [false, false, true], 'in the browser mode the player is the page it always was');
   assert(await isDrawn(page, '#segs .gap .plus'), 'the + between the captions there, to write a note with');
   await page.locator('#typo').click();
-  eq(await page.evaluate(() => [...document.querySelectorAll('.parseh-typo .trow')]
-       .filter(t => getComputedStyle(t).display !== 'none').map(t => t.querySelector('input').id.replace('st-', ''))),
-     ['fa', 'gl', 'width', 'lead'], 'and the panel of its Aa has no subtitles slider: a desktop has no subtitles');
-  await page.locator('.parseh-typo .tclose').click();
+  await page.waitForFunction(() => window.ParsehGear && ParsehGear.mounted().isOpen());
+  eq(await page.evaluate(() => [...document.querySelectorAll('.pg-panel[data-pg-page=video] [data-pg-group=text] [data-pg-row]')]
+       .filter(t => !t.hidden && t.getClientRects().length).map(t => t.dataset.pgRow)),
+     ['fa', 'gl', 'width', 'lead', 'reset'], 'and the Text group Aa opens has no subtitles slider: a desktop has no subtitles');
+  await page.locator('.pg-panel[data-pg-page=video] .pg-x').click();
   await ctx.close();
 }
 
@@ -4451,7 +4473,11 @@ async function partUpdate() {
     await page.waitForFunction(() => !document.documentElement.hasAttribute('data-parseh-away'),
                                null, {timeout: 30000});
     await reveal(page);
-    if ((await page.getAttribute('.m-rmore', 'aria-expanded')) !== 'true') await tap(page, '.m-rmore');
+    // the Keep buttons are under ⋯ where the page has one (a reader), and in the last group of the gear's sheet
+    // where it has a gear (a video, since a0.5.0): the same buttons, brought into the sheet while it is up
+    if (await page.$('button.pg-gear')) {
+      if (!(await page.evaluate(() => ParsehGear.mounted().isOpen()))) await tap(page, 'button.pg-gear');
+    } else if ((await page.getAttribute('.m-rmore', 'aria-expanded')) !== 'true') await tap(page, '.m-rmore');
     await page.waitForFunction(() => { const b = document.querySelector('.kp-keep'); return !!b && !b.disabled; },
                                null, {timeout: 60000});
     await tap(page, '.kp-keep');

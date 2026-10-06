@@ -151,7 +151,11 @@
     defsMt: store('yt_defs_mt', false),
     // the reading alone in place of the text (#aloud), for a language
     // divided into words; remembered for every such video
-    aloud: store('yt_aloud', false)
+    aloud: store('yt_aloud', false),
+    // THE SMALL MARKS A LINE IS DRAWN WITH (the gear's «Diacritics», yt_marks):
+    // shown unless the person put them away, on this device, for every video
+    // of a language whose record has marks to put away (its `strip`)
+    marks: store('yt_marks', true)
   };
   // what the switch has behind it, filled by the question asked once at the
   // foot of this file
@@ -214,8 +218,8 @@
     // left to decide -- say so rather than leaving a dead button
     $('#pin').disabled = sideOn();
     $('#grip').title = sideOn()
-      ? 'drag to resize the video column — double-click to reset'
-      : 'drag to resize the video — double-click to reset';
+      ? 'drag to make the video column wider or narrower — double-click for its usual width'
+      : 'drag to make the video bigger or smaller — double-click for its usual size';
   }
   $('#follow').onclick = function () {
     opts.follow = !opts.follow; localStorage.setItem('yt_follow', opts.follow ? '1' : '0');
@@ -274,8 +278,16 @@
      away.  Only a language divided into words has the button, and a
      preference left on by one of those does nothing to a video of any other. */
   function aloudOn() { return !!(L.words && opts.aloud); }
+  /* ITS NAME SAYS WHAT IT SHOWS: «kana only», «pinyin only», and «reading only»
+     for a language that has neither (the page's button and the gear's row both
+     say what is left of the line, and the reading is what the registry calls
+     it -- kana for Japanese, pinyin for Chinese) */
+  var READING_ONLY = (function () {
+    var rd = ((L.reading ? L.reading_label : L.translit_label) || '').toLowerCase();
+    return (rd === 'kana' || rd === 'pinyin' ? rd : 'reading') + ' only';
+  })();
   $('#aloud').hidden = !L.words;
-  if (L.words) $('#aloud').textContent = (L.reading ? L.reading_label : L.translit_label) || 'reading';
+  if (L.words) $('#aloud').textContent = READING_ONLY;
   $('#aloud').onclick = function () {
     opts.aloud = !opts.aloud; localStorage.setItem('yt_aloud', opts.aloud ? '1' : '0');
     paintButtons();
@@ -359,15 +371,20 @@
      subtitles over a video on a phone's whole screen (lib/mobileplayer.js,
      which opens this same panel from a button of its own there); the
      transcript keeps the size `fa` gives it. */
-  var typoApi = null;
+  var typoApi = null, typoFields = [], typoTold = [];
   if (window.Parseh && Parseh.typo) {
-    typoApi = Parseh.typo({key: 'yt_typo', button: $('#typo'), fields: [
+    typoFields = [
       {name: 'fa',    label: L.name,    min: 7,    max: 43,   step: 0.5,  unit: 'px', def: 20,   prop: '--yt-fa'},
       {name: 'sub',   label: 'subtitles', min: 6,  max: 48,   step: 0.5,  unit: 'px', def: 20,   prop: '--yt-sub'},
       {name: 'gl',    label: 'glosses', min: 7,    max: 23,   step: 0.5,  unit: 'px', def: 12.5, prop: '--yt-gl'},
       {name: 'width', label: 'width',   min: 200,  max: 1680, step: 10,   unit: 'px', def: 760,  prop: '--yt-width'},
       {name: 'lead',  label: 'leading', min: 0.5,  max: 1.9,  step: 0.05, unit: '×',  def: 1,    prop: '--yt-lead'}
-    ].concat(Parseh.readingFields(L.code))});
+    ].concat(Parseh.readingFields(L.code));
+    // THESE SAME FIELDS ARE THE GEAR'S SLIDERS (the Text group, below): the
+    // panel's range, step and default are the ones the Aa panel on the whole
+    // screen has, and a value moved there moves the slider here
+    typoApi = Parseh.typo({key: 'yt_typo', button: $('#typo'), fields: typoFields,
+                           onChange: function () { typoTold.forEach(function (fn) { try { fn(); } catch (e) {} }); }});
   }
   // The reading over the transcript.  Japanese has always had its chunk's
   // kana split over a chunk as far as the kana allows (GUESS); a language
@@ -394,18 +411,62 @@
      drags HORIZONTALLY, storing the column's width instead.  Either way a
      double-click forgets that layout's choice. */
   var vid = $('#vid'), wrap = $('#playerwrap'), grip = $('#grip');
-  function maxVidW() { return Math.max(280, wrap.clientWidth - 28); }
+  var VID_MIN = 280, COL_MIN = 320;         // the least a video, and a column beside the text, can be
+  function maxVidW() { return Math.max(VID_MIN, wrap.clientWidth - 28); }
   // side by side, what is resized is the COLUMN, so the two layouts keep
   // their own remembered size: a width that suited a video stacked above
   // the text is not the width that suits a column beside it
-  function maxColW() { return Math.max(320, Math.round(window.innerWidth * 0.72)); }
+  function maxColW() { return Math.max(COL_MIN, Math.round(window.innerWidth * 0.72)); }
+  /* THE SIZE, FOR THE GEAR (its «Video size» slider drives the same stored
+     size the bar under the video does, and follows the bar as it is dragged):
+     what the layout in force sizes, the least and the most it can be, and the
+     size as it is now.  Told to whoever asked (sizeTold, once a frame). */
+  var sizeFns = [], sizeQueued = false;
+  function sizeTold() {
+    if (sizeQueued) return;
+    sizeQueued = true;
+    requestAnimationFrame(function () {
+      sizeQueued = false;
+      sizeFns.forEach(function (fn) { try { fn(); } catch (e) {} });
+    });
+  }
+  var videoSize = {
+    // stacked above the text the video is never wider than the stylesheet lets it be (#vid's max-width): the bar
+    // stores the width the video really has, so the most it can be is that, and a slider that offered more would
+    // jump back as soon as it was moved
+    range: function () {
+      if (sideOn()) return {min: COL_MIN, max: maxColW(), side: true};
+      var cap = parseFloat(getComputedStyle(vid).maxWidth), max = maxVidW();
+      if (cap > 0 && cap < max) max = Math.max(VID_MIN, Math.round(cap));
+      return {min: VID_MIN, max: max, side: false};
+    },
+    get: function () { return Math.round(sideOn() ? wrap.offsetWidth : vid.offsetWidth); },
+    set: function (px) {
+      var r = videoSize.range();
+      localStorage.setItem(r.side ? 'yt_sidew' : 'yt_vidw',
+                           String(Math.round(Math.min(Math.max(r.min, px), Math.max(r.min, r.max)))));
+      applySize();
+    },
+    // the double-click on the bar: forget this layout's choice
+    reset: function () {
+      localStorage.removeItem(sideOn() ? 'yt_sidew' : 'yt_vidw');
+      applySize();
+    },
+    chosen: function () {
+      return localStorage.getItem(sideOn() ? 'yt_sidew' : 'yt_vidw') !== null;
+    },
+    onChange: function (fn) {
+      sizeFns.push(fn);
+      return function () { var k = sizeFns.indexOf(fn); if (k >= 0) sizeFns.splice(k, 1); };
+    }
+  };
   function applySize() {
     if (sideOn()) {
       vid.style.width = '';                 // the video fills its column
       var c = parseInt(localStorage.getItem('yt_sidew') || '', 10);
       if (c > 0) {
         document.documentElement.style.setProperty('--sidew',
-          Math.min(Math.max(320, c), maxColW()) + 'px');
+          Math.min(Math.max(COL_MIN, c), maxColW()) + 'px');
       } else {                              // no choice made: the CSS default
         document.documentElement.style.removeProperty('--sidew');
       }
@@ -422,6 +483,7 @@
       }
     }
     measure();
+    sizeTold();
   }
   (function () {
     var dragging = false, side = false, startX = 0, startY = 0, startW = 0;
@@ -440,13 +502,14 @@
         // the divider follows the pointer: one pixel right, one pixel wider
         var c = Math.round(startW + (e.clientX - startX));
         document.documentElement.style.setProperty('--sidew',
-          Math.min(Math.max(320, c), maxColW()) + 'px');
+          Math.min(Math.max(COL_MIN, c), maxColW()) + 'px');
       } else {
         var w = Math.round(startW + (e.clientY - startY) * 16 / 9);
-        vid.style.width = Math.min(Math.max(280, w), maxVidW()) + 'px';
+        vid.style.width = Math.min(Math.max(VID_MIN, w), maxVidW()) + 'px';
         document.body.classList.add('sized');
       }
       measure();
+      sizeTold();
     });
     function done() {
       if (!dragging) return;
@@ -455,13 +518,11 @@
       localStorage.setItem(side ? 'yt_sidew' : 'yt_vidw',
                            String(side ? wrap.offsetWidth : vid.offsetWidth));
       measure();
+      sizeTold();
     }
     grip.addEventListener('pointerup', done);
     grip.addEventListener('pointercancel', done);
-    grip.addEventListener('dblclick', function () {
-      localStorage.removeItem(sideOn() ? 'yt_sidew' : 'yt_vidw');
-      applySize();
-    });
+    grip.addEventListener('dblclick', videoSize.reset);
   })();
   // crossing the two-column breakpoint changes which layout is in force,
   // so the buttons and the sizes both want redoing
@@ -676,6 +737,66 @@
   // the mode switched under the page: the highlight goes with the button
   if (window.Parseh && Parseh.mode && Parseh.mode.onChange) Parseh.mode.onChange(pnPaint);
 
+  /* ---------------- diacritics: what a line is drawn with ----------------
+     The gear's «Diacritics» (yt_marks) puts away the small marks that write the
+     vowels, the doubling and the silent stop on a Persian or an Arabic line --
+     the very marks the language's record calls its `strip`, which the books'
+     third level leaves off and the lookups fold away (marksRe, above).  ONE
+     RULE, AND DISPLAY ONLY: the lines are drawn from `asDrawn()`, and nothing
+     else reads it -- ch.fa itself, the copy, the cards, the editor, the colour
+     marks and every lookup (which fold the marks away their own way) go on
+     with the chunk as it was written.  A phrase is still a phrase: its cloud
+     opens with its own gloss, and shows the text it was written with when it
+     is asked to. */
+  function marksOff() { return !!marksRe && !opts.marks; }
+  function asDrawn(s) {
+    s = s === undefined || s === null ? '' : String(s);
+    return marksOff() ? s.replace(marksRe, '') : s;
+  }
+  // whether any line of this video holds a mark to put away: the gear has no
+  // switch to offer a video that has none (a Persian one written without)
+  var hasMarkRe = L.strip ? new RegExp('[' + L.strip + ']') : null;
+  function videoHasMarks() {
+    if (!hasMarkRe) return false;
+    return segs.some(function (sg) {
+      return !sg.plain && (sg.chunks || []).some(function (ch) { return hasMarkRe.test(ch.fa || ''); });
+    });
+  }
+  /* EVERY LINE DRAWN AGAIN WHERE IT STANDS: the elements stay -- their listeners,
+     the colour of a marked phrase, the caption on air, the note seams, the
+     lines being picked for a model -- and only the words written in them are
+     written again.  The page is scrolled to where it was (a line without its
+     marks is a little shorter, and the caption being read would move). */
+  function redrawText() {
+    var box = $('#segs');
+    var held = null, was = 0;
+    // the caption at the top of what is being read, and where it stood
+    var from = pnReadFrom();
+    Array.prototype.some.call(box.querySelectorAll('.seg'), function (d) {
+      var r = d.getBoundingClientRect();
+      if (r.bottom > from) { held = d; was = r.top; return true; }
+      return false;
+    });
+    Array.prototype.forEach.call(box.querySelectorAll('.seg'), function (d) {
+      var sg = segs[+d.dataset.i], fa = d.querySelector('.fa');
+      if (!sg || !sg.chunks || !fa) return;                // the video's own framing is never touched
+      var kids = Array.prototype.filter.call(fa.children, function (e) {
+        return e.classList.contains('w') || e.classList.contains('bare');
+      });
+      sg.chunks.forEach(function (ch, j) {
+        var e = kids[j];
+        if (!e) return;
+        if (e.classList.contains('bare')) e.textContent = asDrawn(ch.fa);
+        else paintWords(e, ch);
+      });
+    });
+    if (held) {
+      var d = held.getBoundingClientRect().top - was;
+      if (Math.abs(d) > 0.5) window.scrollBy(0, d);
+    }
+    refillCloud();
+  }
+
   // the words of a chunk as spans of their own, so a modifier-click can
   // name the WORD even though the hover gloss belongs to the whole phrase
   // (a Japanese chunk is one word: its card is the phrase).  A function
@@ -693,14 +814,14 @@
       w.textContent = '';
       var said = document.createElement('span');
       said.className = 'wd';
-      said.textContent = ParsehWordline.aloud((L.reading ? ch.kana : ch.tr) || '', ch.fa);
+      said.textContent = ParsehWordline.aloud((L.reading ? ch.kana : ch.tr) || '', asDrawn(ch.fa));
       w.appendChild(said);
       return;
     }
     var line = lineOf(ch);
     if (line && READINGS.renderWords(w, ch.fa, line)) return;
     w.textContent = '';
-    wordsOf(ch.fa).forEach(function (wordTxt, k) {
+    wordsOf(asDrawn(ch.fa)).forEach(function (wordTxt, k) {
       if (k) w.appendChild(document.createTextNode(L.word_sep));
       var wd = document.createElement('span');
       wd.className = 'wd'; wd.textContent = wordTxt;
@@ -737,7 +858,7 @@
   function fillCloud(ch) {
     var h = '<div class="arrow"></div>';
     // with the transcript showing the reading alone, the text is here
-    if (aloudOn()) h += '<div class="ctext" lang="' + L.code + '">' + esc(ch.fa) + '</div>';
+    if (aloudOn()) h += '<div class="ctext" lang="' + L.code + '">' + esc(asDrawn(ch.fa)) + '</div>';
     // the reading (kana) sits above the transliteration, in the target face;
     // a language without a reading ignores the field (a stray key copied
     // from another language's template must not become a line)
@@ -789,7 +910,7 @@
     // The panel above opens by itself only where nobody has written a
     // vocabulary line, and only with the header's switch on; a reader on a
     // phone may want the dictionary's senses of a phrase that has a gloss
-    // too, and the switch is under ⋯.  So beside "copy", the mobile
+    // too, and the switch is in the gear's sheet (it was under ⋯).  So beside "copy", the mobile
     // interface has a button that opens the dictionary's sheet, on demand --
     // wherever the panel is not there already (dictOnDemand): under every
     // gloss, and under "nothing glossed yet" with the dictionary switched off.
@@ -3595,7 +3716,7 @@
           // run is always the quiet aside it was marked as.
           bare.className = 'bare' + (hasScript(ch.fa) ? ' tl' : '');
           bare.setAttribute('dir', 'auto');
-          bare.textContent = ch.fa;
+          bare.textContent = asDrawn(ch.fa);
           // a mark set by hand in the file still shows on a chunk the
           // player itself would not offer to colour
           paintCol(bare, ch);
@@ -3666,7 +3787,11 @@
     var w = e.target.closest('.w');
     var sg = segs[+segEl.dataset.i];
     var line = segEl.querySelector('.fa, .en-line');
-    var text = w ? Parseh.baseText(w)
+    // WHAT IS COPIED IS THE PHRASE AS IT WAS WRITTEN: with the diacritics put
+    // away the page draws it without its marks, and the copy still has them
+    // (the caption's own text, below, never lost them)
+    var own = w && sg && sg.chunks ? sg.chunks[+w.dataset.j] : null;
+    var text = w ? (marksOff() && own ? own.fa : Parseh.baseText(w))
              : (sg && sg.text) ? sg.text
              : (line ? line.textContent : '');
     if (window.Parseh) Parseh.copy(text);
@@ -3717,8 +3842,14 @@
     // İngilizce" or "Nasılsın?" comes away clean.  “ is in both halves
     // (it opens in English, closes in German), and the apostrophe in
     // neither: "po'" and "İstanbul'da" wear it as part of the word.
-    var word = Parseh.baseText(t).replace(/^[«"(「『（„“‹]+|[»".,;:?!،؛؟)」』、。！？）”“›…]+$/g, '');
-    openAnki(word || Parseh.baseText(t), ch, sg, undefined, at);
+    // THE WORD AS WRITTEN, not as drawn: with the diacritics put away the span
+    // holds the word without its marks, and the card carries the marks (the
+    // chunk's words are drawn one span each, so its k-th is the k-th written)
+    var drawn = Parseh.baseText(t);
+    var written = marksOff() && at.k !== null && at.k >= 0 && wordsOf(ch.fa)[at.k] !== undefined
+                  ? wordsOf(ch.fa)[at.k] : drawn;
+    var word = written.replace(/^[«"(「『（„“‹]+|[»".,;:?!،؛؟)」』、。！？）”“›…]+$/g, '');
+    openAnki(word || written, ch, sg, undefined, at);
   }, true);
 
   // while a modifier is down, the word under the cursor lights up
@@ -6588,6 +6719,312 @@
       .observe(document.documentElement, {attributes: true, attributeFilter: ['data-mode']});
   }
 
+  /* ---------------- THE GEAR, ⚙ page (a0.5.0) ----------------
+     Everything this page lets a person set, in the one panel -- lib/pagesettings.js
+     draws it and this says what is in it: how the transcript follows the video, how
+     a word is looked up, how the video plays, how the text looks, the zoom, the
+     colours, the interface.  Groups, rows, names and sentences are the owner's
+     (TO-DO §5.25).
+
+     THE PAGE'S OWN CONTROLS STAY WHERE THEY ARE AND DO THE WORK.  A switch of the
+     panel is read from the setting its button keeps and is moved by PRESSING that
+     button, so the button, its handler, the key it is stored under and the gear can
+     never disagree; the buttons that live only in the gear (hover ⏸, definitions,
+     translated, the reading-help link) are put away by the stylesheet
+     (html.pg-player) and are still in the page, for this to press.  What is not a
+     button of the page's is what the page already knew how to do: the size of the
+     video (the bar under it), the Aa panel's own sliders (typoFields), and the
+     lines drawn without their marks (redrawText).  A page the toolkit did not come
+     to (its script is missing) is the page it was.
+
+     AND Aa OPENS THIS: the header's Aa stays where it is and opens the gear at its
+     Text group -- one set of sliders -- so Parseh.typo's own panel is kept for the
+     one place that still has it, the Aa on a phone's whole screen (lib/mobileplayer.js),
+     which has no gear and sizes only the subtitles and the glosses. */
+  (function () {
+    var Gear = window.ParsehGear;
+    if (!Gear || !Gear.mount) { document.documentElement.classList.remove('pg-player'); return; }
+    var gear = null;
+    var DEVICE = 'Saved on this device.';
+
+    /* A switch that is one of the page's own buttons: pressed only if it is not already as asked, and pressed by
+       RUNNING THE BUTTON'S OWN HANDLER, not by clicking it.  The toolkit hears every click on the page, whoever sent
+       it, and one that lands outside the panel is what shuts a popover: a switch that pressed the page's button by
+       a click shut its own panel, to be opened again for every switch.  (Where the handler is not a property -- a
+       later script hung it with addEventListener -- the click is all there is.) */
+    function press(sel, want, now) {
+      if (!!now() === !!want) return;
+      var b = $(sel);
+      if (b.disabled) return;
+      if (typeof b.onclick === 'function') b.onclick.call(b); else b.click();
+    }
+    // what the page says changed under the panel (a header button pressed, the window turned or
+    // resized, a reading-help answer come): ONE row carries it, since every row is asked again
+    function watchPage(cb) {
+      var mo = null, head = document.querySelector('header');
+      if (window.MutationObserver && head) {
+        mo = new MutationObserver(function () { cb(); });
+        mo.observe(head, {attributes: true, subtree: true, attributeFilter: ['class', 'hidden', 'disabled']});
+        mo.observe(document.body, {attributes: true, attributeFilter: ['class']});
+      }
+      window.addEventListener('resize', cb);
+      return function () { if (mo) mo.disconnect(); window.removeEventListener('resize', cb); };
+    }
+    // a setting another tab, or the toolbox, changed
+    function watchKeys(keys) {
+      return function (cb) {
+        var h = function (e) { if (!e || !e.key || keys.indexOf(e.key) >= 0) cb(); };
+        var p = function (e) { var d = e && e.detail; if (!d || keys.indexOf(d.key) >= 0) cb(); };
+        window.addEventListener('storage', h);
+        document.addEventListener('parseh:pref', p);
+        return function () {
+          window.removeEventListener('storage', h);
+          document.removeEventListener('parseh:pref', p);
+        };
+      };
+    }
+    function narr() { return window.ParsehNarr || null; }
+
+    /* ---- Watching & reading ---- */
+    function setMarks(on) {
+      opts.marks = !!on;
+      localStorage.setItem('yt_marks', on ? '1' : '0');
+      redrawText();
+    }
+    // the video's size as a share of what this layout can be, which is what a slider with
+    // fixed ends can say; the number beside it is the width in pixels, which is what is kept
+    function sizeShare() {
+      var r = videoSize.range(), v = videoSize.get();
+      return r.max > r.min ? Math.max(0, Math.min(100, (v - r.min) / (r.max - r.min) * 100)) : 100;
+    }
+    var watching = {
+      id: 'watching', title: 'Watching & reading', caption: DEVICE,
+      rows: [
+        {id: 'follow', kind: 'switch', label: 'Keep the playing caption in view',
+         help: 'Scrolls the transcript so the caption being said stays on screen; it waits a moment after you scroll yourself.',
+         get: function () { return opts.follow; },
+         set: function (v) { press('#follow', v, function () { return opts.follow; }); },
+         watch: watchPage},
+        {id: 'hoverpause', kind: 'switch', label: 'Pause while a gloss is open',
+         help: 'While a gloss is open the video waits, and goes on a moment after it closes, so you can read at your own pace. With a mouse or a finger.',
+         get: function () { return opts.hoverpause; },
+         set: function (v) { press('#hoverpause', v, function () { return opts.hoverpause; }); }},
+        {id: 'aloud', kind: 'switch', label: 'Show only the reading',
+         help: 'Draws each phrase as its reading alone (kana, or pinyin) and keeps the text in the hover cloud.',
+         when: function () { return !!L.words; },
+         get: function () { return opts.aloud; },
+         set: function (v) { press('#aloud', v, function () { return opts.aloud; }); }},
+        {id: 'marks', kind: 'switch', label: 'Diacritics',
+         help: 'Shows the small marks that write the vowels, the doubling and the silent stop (fatha, damma, kasra, ' +
+               'tanwin, shadda, sukun) on the transcript. Off, the text reads as it is ordinarily printed and you can ' +
+               'still point at a phrase for its gloss.',
+         when: function () { return videoHasMarks(); },
+         get: function () { return opts.marks; },
+         set: setMarks},
+        {id: 'sbs', kind: 'switch', label: 'Video beside the text',
+         help: 'Puts the video in a column beside the transcript instead of above it. Only on wide screens ' +
+               '(860 px and up); on a phone, turning it sideways does it.',
+         when: function () { return CFG.kind !== 'audio'; },
+         // on a phone's layout it is the phone's own turning that decides, so the switch says what the page is
+         // doing and rests, with the reason, instead of promising what it cannot do
+         disabled: function () { return mobileNow() ? 'On a phone, turning it sideways does it.' : false; },
+         get: function () { return mobileNow() ? sideOn() : opts.sbs; },
+         set: function (v) { press('#sbs', v, function () { return opts.sbs; }); }},
+        {id: 'pin', kind: 'switch', label: 'Keep the video in view',
+         help: 'The video stays at the top while the transcript scrolls under it. Not needed when the video is beside the text.',
+         disabled: function () { return sideOn() ? 'The video is beside the text, so it is always in view.' : false; },
+         get: function () { return opts.pin; },
+         set: function (v) { press('#pin', v, function () { return opts.pin; }); }},
+        {id: 'size', kind: 'slider', label: 'Video size',
+         help: 'How big the video is. You can also drag the bar under it; double-click it to reset.',
+         min: 0, max: 100, step: 1,
+         when: function () { return CFG.kind !== 'audio'; },
+         disabled: function () {
+           var r = videoSize.range();
+           return r.max > r.min ? false : 'This window has no room to make the video bigger or smaller.';
+         },
+         get: sizeShare,
+         set: function (p) { var r = videoSize.range(); videoSize.set(r.min + p / 100 * (r.max - r.min)); },
+         format: function (p) {
+           var r = videoSize.range();
+           // as kept where the slider is where the video is, and as the slider says elsewhere
+           return (Math.round(p) === Math.round(sizeShare()) ? videoSize.get()
+                                                              : Math.round(r.min + p / 100 * (r.max - r.min))) + ' px';
+         },
+         watch: function (cb) { return videoSize.onChange(cb); }},
+        {id: 'lines', kind: 'switch', layouts: 'mobile', label: 'Show the lines around',
+         help: 'On the whole-screen video, shows the caption before above and the caption after below the one being said.',
+         when: function () { return !!(window.ParsehMobilePlayer && ParsehMobilePlayer.lines); },
+         get: function () { return ParsehMobilePlayer.lines.get(); },
+         set: function (v) { ParsehMobilePlayer.lines.set(v); },
+         watch: function (cb) { return ParsehMobilePlayer.lines.onChange(cb); }}
+      ]
+    };
+
+    /* ---- Looking a word up: the switches only where the page's own dictionary button is there ---- */
+    var looking = {
+      id: 'looking', title: 'Looking a word up', caption: DEVICE,
+      rows: [
+        {id: 'dict', kind: 'switch', label: 'Look words up in a dictionary',
+         help: 'Where a phrase has not been glossed, its cloud looks its words up in the dictionary installed for this ' +
+               'language. Remembered on this device.',
+         when: function () { return !$('#dictmode').hidden; },
+         get: function () { return opts.dict; },
+         set: function (v) { press('#dictmode', v, function () { return opts.dict; }); }},
+        {id: 'defs', kind: 'switch', indent: 1, label: 'Show the dictionary’s definitions',
+         help: function () { return 'Under each word it finds, the dictionary’s own definition in ' + (L.name || L.code) + '.'; },
+         when: function () { return !$('#dictmode').hidden && !$('#defmode').hidden; },
+         disabled: function () { return $('#defmode').disabled ? 'Turn on the dictionary above first.' : false; },
+         get: function () { return opts.defs; },
+         set: function (v) { press('#defmode', v, function () { return opts.defs; }); }},
+        {id: 'defsmt', kind: 'switch', indent: 2,
+         label: function () { return 'Translate the definitions into ' + G.name; },
+         help: function () {
+           return 'Each definition is put into ' + G.name + ' by the translation model on this computer: ' +
+                  'a machine’s reading, not a gloss.';
+         },
+         when: function () { return !$('#dictmode').hidden && !$('#defmt').hidden; },
+         disabled: function () {
+           return $('#defmt').disabled ? (opts.dict ? 'Turn on the definitions above first.' : 'Turn on the dictionary first.') : false;
+         },
+         get: function () { return opts.defsMt; },
+         set: function (v) { press('#defmt', v, function () { return opts.defsMt; }); }},
+        // drawn even where nothing is installed: it is how something gets installed
+        {id: 'help', kind: 'link', href: '/settings/reading-help/', label: 'Get a dictionary for this language →',
+         help: 'A dictionary, a corpus of translated sentences or a translation model can read a phrase nobody has ' +
+               'glossed. Setting one up takes a couple of minutes.'}
+      ]
+    };
+
+    /* ---- Playback: the skip is the person's (bk_skip, which ↺ ↻ and Shift+← → use); the speed is the dock's ---- */
+    var playback = {
+      id: 'playback', title: 'Playback', caption: 'Saved on this device, except the skip distance, which follows you.',
+      rows: [
+        {id: 'skip', kind: 'choice', kept: 'you', label: 'Skip distance',
+         help: function () {
+           return mobileNow() ? 'How many seconds ↺ and ↻ move the video. Shift+← and Shift+→ do the same.'
+                              : 'How many seconds Shift+← and Shift+→ move the video.';
+         },
+         options: ((narr() && narr().seconds) || [1, 2, 5, 10, 15, 30, 60]).map(function (n) {
+           return {value: n, label: n + ' s'};
+         }),
+         get: function () {
+           if (narr() && narr().secs) return narr().secs();
+           var v = parseInt(localStorage.getItem('bk_skip'), 10);
+           return v >= 1 && v <= 600 ? v : 10;
+         },
+         set: function (v) {
+           v = parseInt(v, 10);
+           if (narr() && narr().setSecs) narr().setSecs(v); else localStorage.setItem('bk_skip', String(v));
+         },
+         watch: watchKeys(['bk_skip'])},
+        // only where the page has a control of its own for it: the dock of the phone's layout (lib/narrctl.js);
+        // a stepper, because the speeds a video plays at are the player's to say (YouTube offers eight)
+        {id: 'speed', kind: 'stepper', layouts: 'mobile', kept: 'device', label: 'Playback speed',
+         help: 'How fast the video plays. The speed chip in the dock at the foot of the screen sets the same speed.',
+         when: function () { return !!(narr() && narr().rate); },
+         values: function () { return (narr() && narr().speeds && narr().speeds()) || [1]; },
+         get: function () { return narr().rate(); },
+         set: function (v) { narr().setRate(v); },
+         format: function (v) { return narr() && narr().say ? narr().say(v) : v + '×'; },
+         def: 1, reset: function () { narr().setRate(1); }, resetLabel: 'Back to 1×',
+         watch: function (cb) { return window.ParsehPlayer && ParsehPlayer.onChange ? ParsehPlayer.onChange(cb) : function () {}; }}
+      ]
+    };
+
+    /* ---- Text: the Aa panel's own fields, each a slider with the words the owner chose ---- */
+    var TEXT = {
+      fa:           {label: function () { return (L.name || L.code) + ' text size'; },
+                     help: 'How big the transcript’s own words are, the ones you are learning.',
+                     show: function (v) { return Math.round(v * 10) / 10 + ' px'; }},
+      sub:          {label: 'Subtitle size', layouts: 'mobile',
+                     help: 'How big the subtitles are over the video when it fills the screen (a phone held sideways).',
+                     show: function (v) { return Math.round(v * 10) / 10 + ' px'; }},
+      gl:           {label: 'Gloss size',
+                     help: 'How big the meanings and notes in the hover cloud are.',
+                     show: function (v) { return Math.round(v * 10) / 10 + ' px'; }},
+      width:        {label: 'Text width',
+                     help: 'How wide the column of transcript may grow on a wide screen; on a narrow screen it always fits.',
+                     show: function (v) { return Math.round(v) + ' px'; }},
+      lead:         {label: 'Line spacing',
+                     help: 'The space between lines: 1 is the usual, more is airier.',
+                     show: function (v) { return Math.round(v * 100) / 100 + '×'; }},
+      cjkSpace:     {label: 'Space between characters',
+                     help: 'Extra room between characters; 0 is the normal spacing.',
+                     show: function (v) { return Math.round(v * 1000) / 1000 + ' em'; }},
+      kanaContrast: {label: 'Furigana contrast',
+                     help: 'How strongly the small kana over the kanji are drawn: lower fades them so the kanji stand out, higher makes them darker.',
+                     show: function (v) { return Math.round(v) + ' %'; }},
+      kanaSize:     {label: 'Furigana size',
+                     help: 'How big the kana over the kanji are, as a percentage of the kanji’s own size.',
+                     show: function (v) { return Math.round(v) + ' %'; }}
+    };
+    var text = {id: 'text', title: 'Text', caption: DEVICE, rows: []};
+    typoFields.forEach(function (f) {
+      var t = TEXT[f.name];
+      if (!t || !typoApi) return;
+      var row = {id: f.name, kind: 'slider', label: t.label, help: t.help,
+                 min: f.min, max: f.max, step: f.step, format: t.show,
+                 get: function () { return typoApi.get()[f.name]; },
+                 set: function (v) { typoApi.set(f.name, v); },
+                 // the whole screen's panel moves the same values
+                 watch: function (cb) {
+                   typoTold.push(cb);
+                   return function () { var k = typoTold.indexOf(cb); if (k >= 0) typoTold.splice(k, 1); };
+                 }};
+      if (t.layouts) row.layouts = t.layouts;
+      text.rows.push(row);
+    });
+    if (typoApi) text.rows.push({id: 'reset', kind: 'action', label: 'Put the text back to normal',
+      help: 'Sets every size, the width and the spacing above back to the usual.',
+      onClick: function () { typoApi.reset(); }});
+
+    /* ---- the last group of the phone's sheet holds the Keep buttons (lib/keep.js), brought in as they are ---- */
+    var iface = Gear.std['interface']();
+    iface.rows.push({id: 'keep', kind: 'node', layouts: 'mobile', label: 'Use it without the computer',
+      help: 'Keep this video on this phone, so it still works when the computer cannot be reached.',
+      el: function () { return document.querySelector('.kp-btn'); }});
+
+    var header = document.querySelector('header');
+    try {
+      gear = Gear.mount({page: 'video', host: {browser: header, mobile: header},
+                         groups: [watching, looking, playback, text, Gear.std.zoom(), Gear.std.colours(), iface]});
+    } catch (e) {
+      try { console.error('[gear]', e); } catch (x) {}
+      document.documentElement.classList.remove('pg-player');
+      return;
+    }
+    document.documentElement.classList.add('pg-player');
+
+    /* ---- Aa: the gear at its Text group, and again to put it away ----
+       In the capture phase at the window, so that it is heard before the toolkit's own click-outside (which
+       would shut an open panel and have it opened again) and before Parseh.typo's button (which would open
+       its own panel).  Where the panel already stands at Text the next press shuts it; where it stands
+       elsewhere -- or has been scrolled away from Text -- the press brings Text to the top. */
+    var aaAt = null;
+    function bodyScroll() {
+      var b = document.querySelector('.pg-panel[data-pg-page="video"] .pg-body');
+      return b ? b.scrollTop : 0;
+    }
+    function paintAa() {
+      var on = gear.isOpen() && aaAt !== null;
+      $('#typo').classList.toggle('on', on);
+      $('#typo').setAttribute('aria-expanded', on ? 'true' : 'false');
+    }
+    window.addEventListener('click', function (e) {
+      var a = e.target && e.target.closest ? e.target.closest('#typo') : null;
+      if (!a || !gear || Gear.mounted() !== gear) return;
+      e.preventDefault(); e.stopImmediatePropagation();
+      if (gear.isOpen() && aaAt !== null && Math.abs(bodyScroll() - aaAt) < 3) { gear.close(); return; }
+      if (gear.open('text')) aaAt = bodyScroll();
+      paintAa();
+    }, true);
+    gear.onToggle(function (up) {
+      if (!up) aaAt = null;
+      paintAa();
+    });
+  })();
+
   /* ---- THE VIDEO, FOR THE LAYERS OUTSIDE THIS SCRIPT (TO-DO §4.2) ----
      On a phone the narration's controls float at the foot of the screen --
      ↺, ⏯, ↻ and the speed -- and they are the book reader's (lib/narrctl.js),
@@ -6640,7 +7077,13 @@
       } catch (e) {}
       return null;
     },
-    onChange: function (fn) { stateFns.push(fn); watchFilm(); },
+    onChange: function (fn) {
+      stateFns.push(fn); watchFilm();
+      // and a way to stop listening, for the gear's rows, which come and go
+      return function () { var k = stateFns.indexOf(fn); if (k >= 0) stateFns.splice(k, 1); };
+    },
+    // the video's own size (the bar under it, and the gear's «Video size»)
+    size: videoSize,
     /* THE SUBTITLE OVER A VIDEO ON THE WHOLE SCREEN (lib/mobileplayer.js).
        The line laid over the picture is a COPY of the caption being said, and
        a copy carries none of the listeners this page hung on each phrase as it

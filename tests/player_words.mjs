@@ -363,7 +363,7 @@ try {
   // the reading alone
   await away(page);
   const before = await lines(page);
-  eq(await page.evaluate(() => [document.querySelector('#aloud').hidden, document.querySelector('#aloud').textContent]), [false, 'kana'],
+  eq(await page.evaluate(() => [document.querySelector('#aloud').hidden, document.querySelector('#aloud').textContent]), [false, 'kana only'],
      'a language divided into words has the button, named after its reading');
   await click(page, '#aloud');
   const aloud = () => page.evaluate(ann => [...document.querySelectorAll('#segs .seg .fa .w')].map(w => {
@@ -441,7 +441,7 @@ try {
      {fa:'茶', kana:'', tr:'chá', ctx:'你好，我想要一杯茶'}, 'a Chinese word\'s card takes its pinyin as the transliteration');
 
   const before = await lines(page);
-  eq(await page.evaluate(() => document.querySelector('#aloud').textContent), 'pinyin', 'the button is named after pinyin');
+  eq(await page.evaluate(() => document.querySelector('#aloud').textContent), 'pinyin only', 'the button is named after pinyin: «pinyin only»');
   await click(page, '#aloud');
   eq(await page.evaluate(() => {
     // with character spacing set, which pinyin alone must not take
