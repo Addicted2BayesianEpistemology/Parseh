@@ -1400,9 +1400,11 @@ await sec('std', async () => {
 });
 
 await sec('zoom', async () => {
-  // no ParsehZoom: the group is not drawn
+  // no ParsehZoom: the group is not drawn (the fixture page loads the real parseh.js, which since a0.5.0 brings
+  // lib/pagezoom.js with it: take the module away, as a page without it would be)
   let t = await open('wide', 'book');
   let p = t.page;
+  await p.evaluate(() => { delete window.ParsehZoom; if (window.__gear) window.__gear.refresh(); });
   await openGear(p);
   eq(await groupOf(p, 'zoom').isVisible(), false, 'zoom: without ParsehZoom the group is not drawn');
   eq(await p.evaluate(() => [...document.querySelectorAll('.pg-gtitle')].filter(e => e.getClientRects().length).map(e => e.textContent)), ['Levels & reading', 'Listening', 'Looking a word up', 'Text', 'Colours', 'Interface'], 'zoom: and no other group is missing for it');
