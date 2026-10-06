@@ -1193,13 +1193,20 @@ def link_files(root):
 
 def scan_links(root, project):
     """{address: [the files that write it]}, by address: every address based
-    on the repository or on the domain (the site and the guide under it)."""
+    on the repository or on the domain (the site and the guide under it).
+
+    Two kinds are left out, because a document names them without promising a
+    page: the icons' FOLDER (it has no page of its own; its files are asked
+    one by one) and the addresses that are only reported (Parseh's own Pages
+    path is expected to answer 404)."""
     bases = (project.GITHUB_URL, project.WEBSITE_URL.rstrip("/"))
+    no_page = {project.ICONS_URL.rstrip("/")} | {a.rstrip("/") for _, a, _ in report_addresses(project)}
     where = {}
     for rel in link_files(root):
         with open(os.path.join(root, rel), encoding="utf-8", errors="replace") as f:
             for address in _addresses_in(f.read(), bases):
-                where.setdefault(address, []).append(rel)
+                if address.rstrip("/") not in no_page:
+                    where.setdefault(address, []).append(rel)
     return dict(sorted(where.items()))
 
 

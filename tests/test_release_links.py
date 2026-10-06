@@ -465,6 +465,13 @@ class Judging(Tree):
         self.assertEqual(found[S + "site/a.html"], ["README.md"])
         self.assertEqual(found[S + "site/f.html"], ["html-guide/markdown/getting-started/a.md"])
 
+    def test_an_address_a_document_names_without_promising_a_page_is_not_asked(self):
+        # met live on 2026-10-06: the icons' folder has no page, and Parseh's own Pages path is MEANT to be 404
+        S = project.SITE
+        plant(self.root, {"docs/x.md": "%s and `%s%s/` and %ssite/a.html\n"
+                          % (project.ICONS_URL, project.WEBSITE_URL, project.NAME, S)})
+        self.assertEqual(list(release.scan_links(self.root, project)), [S + "site/a.html"])
+
     def test_an_address_is_asked_once_however_often_it_is_written_and_whatever_its_anchor(self):
         S = project.SITE
         plant(self.root, {"README.md": "%ssite/a.html#one %ssite/a.html#two\n" % (S, S),
