@@ -963,7 +963,13 @@ try {
       await page.waitForSelector('[data-parseh-gear]', {state: 'attached'});
       await page.locator('#btn-typo').click();
       await sleep(200);
-      eq(await groupsOf(page), ['text', 'exercises', 'page', 'colours', 'interface'], 'the document has its gear without the toolbox');
+      // the studio alone answers the zoom module too (the pages carry its tag), so the Zoom group is there, and it is the
+      // real one: a step taken in it zooms the page, and the step back puts the page as it was
+      eq(await groupsOf(page), ['text', 'exercises', 'page', 'zoom', 'colours', 'interface'], 'the document has its gear without the toolbox');
+      await page.locator('.pg-panel [data-pg-group=zoom] .pg-stepbtn[aria-label=Increase]').click();
+      eq(await page.evaluate(() => ParsehZoom.applied()), 110, 'the Zoom group\'s + takes the whole page to 110 %');
+      await page.locator('.pg-panel [data-pg-group=zoom] .pg-stepbtn[aria-label=Decrease]').click();
+      eq(await page.evaluate(() => [ParsehZoom.applied(), ParsehZoom.factor()]), [100, 1], 'and its − takes it back to 100 %, with nothing replaced');
       await setRange(page, 'text', 'fa', 2);
       eq((await sheetVars(page)).fa, 2, 'and its sliders move the sheet');
       eq(await page.locator('.pg-panel [data-pg-group=colours] .pg-caption').textContent(), 'Saved on this device.',
