@@ -88,7 +88,7 @@ class ServedAndKept(unittest.TestCase):
     def test_the_studio_run_alone_answers_the_toolkits_two_files(self):
         import server
         src = text(APP / "server.py")
-        self.assertIn(r'r"^/lib/(pagesettings\.(?:js|css))$"', src)
+        self.assertIn(r'r"^/lib/(pagesettings\.(?:js|css)|pagezoom\.js)$"', src)
         self.assertIn("serve_gear_file", src)
         self.assertTrue(any(re.match(p, "/lib/pagesettings.js") for m, p, f in server.ROUTES if f.__name__ == "serve_gear_file"))
         self.assertTrue(any(re.match(p, "/lib/pagesettings.css") for m, p, f in server.ROUTES if f.__name__ == "serve_gear_file"))

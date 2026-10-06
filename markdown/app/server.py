@@ -1036,7 +1036,9 @@ def serve_llmrow_js(h):
 
 def serve_gear_file(h, name):
     """The gear's two files (lib/pagesettings.js and its sheet): the panel every
-    page of Parseh opens for its own settings, a0.5.0.
+    page of Parseh opens for its own settings, a0.5.0 -- and the page zoom
+    (lib/pagezoom.js), which the same pages link first of all and whose
+    Zoom group the panel draws.
 
     The studio's document, editor and exercise pages link them as
     /lib/pagesettings.js, which is the toolbox's own when the studio is mounted
@@ -2558,7 +2560,7 @@ ROUTES = [
     ("GET",    r"^/static/app\.css$",                     serve_app_css),
     ("GET",    r"^/static/app\.js$",                      serve_app_js),
     ("GET",    r"^/lib/llmrow\.js$",                      serve_llmrow_js),
-    ("GET",    r"^/lib/(pagesettings\.(?:js|css))$",      serve_gear_file),
+    ("GET",    r"^/lib/(pagesettings\.(?:js|css)|pagezoom\.js)$", serve_gear_file),
     ("GET",    r"^/__prompt/options$",                    serve_prompt_options),
     ("GET",    r"^/static/mathjax\.js$",                  serve_math_js),
     ("GET",    r"^/static/mathjax\.css$",                 serve_math_css),
