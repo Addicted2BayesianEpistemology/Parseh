@@ -78,8 +78,9 @@ What it carries of other people's work keeps their licences:
   Urdu, Noto Serif Devanagari): SIL Open Font License 1.1 — the licence and
   their copyright notices in [`lib/fonts/OFL.txt`](lib/fonts/OFL.txt), every
   file named in [`lib/fonts/README.md`](lib/fonts/README.md);
-- TeX Gyre Pagella and Heros, which now travel with Parseh in `lib/fonts/`
-  (and in the compiled guide, `html-guide/site/_parseh/fonts/`): GUST Font
+- TeX Gyre Pagella, Heros and Chorus, which now travel with Parseh in `lib/fonts/`
+  (Pagella and Heros also in the compiled guide, `html-guide/site/_parseh/fonts/`;
+  Chorus only in the guide published on the web): GUST Font
   License ([`lib/fonts/GUST-FONT-LICENSE.txt`](lib/fonts/GUST-FONT-LICENSE.txt)),
   every file named in [`lib/fonts/README.md`](lib/fonts/README.md);
 - MathJax 3.2.2 (`lib/mathjax/`): Apache License 2.0 (its `LICENSE` beside it);

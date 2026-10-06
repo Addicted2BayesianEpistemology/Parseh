@@ -137,8 +137,14 @@ class PublishedLayout(unittest.TestCase):
             self.assertIsNotNone(css, rel)
             script = re.search(r'<script id="ps-bar-js">(.*?)</script>', text, re.S)
             self.assertIsNotNone(script, rel)
-            for what in (css.group(1), script.group(1)):
-                self.assertNotRegex(what, r"https?:|//[a-z]|@import|fetch\(|XMLHttpRequest|url\(", rel)
+            # the one address in the style is the bar's face, a file of the published site named relative to
+            # the page (the next test follows it to the file); everything else must name no address at all
+            faces = re.findall(r"url\(([^)]*)\)", css.group(1))
+            self.assertEqual(len(faces), 1, rel)
+            self.assertRegex(faces[0], r"^(?:\.\./)*(?:site/)?(?:_parseh/)?fonts/|^(?:\.\./)*_parseh/fonts/|^site/_parseh/fonts/", rel)
+            self.assertNotRegex(faces[0], r"^(?:[a-z]+:)?//|^[a-z]+:", rel)
+            for what in (css.group(1).replace("url(" + faces[0] + ")", "url()"), script.group(1)):
+                self.assertNotRegex(what, r"https?:|//[a-z]|@import|fetch\(|XMLHttpRequest|url\((?!\))", rel)
 
     def test_the_letter_of_the_logo_has_its_face_in_the_layout(self):
         # guide.css, which every page links, names Noto Nastaliq Urdu at an
@@ -149,6 +155,25 @@ class PublishedLayout(unittest.TestCase):
         font = (self.site / "assets" / m.group(1)).resolve()
         self.assertTrue(font.is_file(), str(font))
         self.assertEqual(font.read_bytes()[:4], b"wOF2")
+
+    def test_the_name_is_set_in_the_sites_own_face_and_every_page_reaches_the_file(self):
+        # the website sets the name in TeX Gyre Chorus; the guide's bar names the same face, and the rule that names it
+        # carries the address of the file AS THAT PAGE reaches it (inline CSS resolves against the page), at every depth
+        want = (ROOT / "lib" / "fonts" / "texgyrechorus-mediumitalic.otf").read_bytes()
+        self.assertGreater(len(want), 50000)
+        depths = set()
+        for page, text in self.pages.items():
+            m = re.search(r"@font-face\{font-family:'TeX Gyre Chorus';src:url\(([^)]+)\) format\('opentype'\)", text)
+            self.assertIsNotNone(m, "the bar of %s does not name its face" % page.relative_to(self.site))
+            font = (page.parent / m.group(1)).resolve()
+            self.assertEqual(font, (self.site / "site" / "_parseh" / "fonts" / "texgyrechorus-mediumitalic.otf").resolve(),
+                             "%s reaches %s" % (page.relative_to(self.site), font))
+            depths.add(len(page.relative_to(self.site).parts))
+        self.assertGreaterEqual(len(depths), 3, "front page, a page of site/, a page one folder deeper: " + str(depths))
+        self.assertEqual((self.site / "site" / "_parseh" / "fonts" / "texgyrechorus-mediumitalic.otf").read_bytes(), want)
+        # the name's rule is the site's: Chorus, then the site's own fallbacks
+        text = self.pages[self.site / "index.html"]
+        self.assertIn(".ps-name{font-family:'TeX Gyre Chorus','Apple Chancery',cursive;font-size:27px;line-height:1}", text)
 
     def test_a_redirect_stub_is_a_stub_and_nothing_else_lacks_the_bar(self):
         # the Hugo aliases are one line of HTML that sends the visitor on; any
@@ -209,6 +234,14 @@ class TheInstalledGuideHasNoBar(unittest.TestCase):
         for p in files:
             text = p.read_text(encoding="utf-8")
             self.assertNotIn("ps-bar", text, str(p.relative_to(ROOT)))
+
+    def test_the_installed_guide_does_not_carry_the_bars_face(self):
+        # the face is the published layout's alone: no copy in the committed site, and its name is in no installed page
+        fonts = GUIDE / "site" / "_parseh" / "fonts"
+        self.assertTrue(fonts.is_dir())
+        self.assertFalse((fonts / "texgyrechorus-mediumitalic.otf").exists())
+        for p in html_files(GUIDE / "site") + [GUIDE / "index.html"]:
+            self.assertNotIn("TeX Gyre Chorus", p.read_text(encoding="utf-8"), str(p.relative_to(ROOT)))
 
     def test_a_plain_compile_has_no_bar(self):
         # the switch is off unless assemble_pages turns it on: the compile

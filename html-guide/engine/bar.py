@@ -26,29 +26,38 @@ site's own as their fallback, so that in the guide's three themes the bar is
 the guide's, and the website could paste HEAD_CSS and bar() as they are.
 Edit the two together.
 
-WHERE THEY DIFFER, ON PURPOSE OR NOT YET:
-  * the NAME.  The site sets it in TeX Gyre Chorus, which is not among the
-    faces the published guide carries (assets/, site/_parseh/fonts/,
-    lib/fonts/ hold the Noto faces, Vazirmatn, TeX Gyre Pagella and Heros),
-    and the guide does not fetch it from another folder of the domain
-    (parseh.io/assets/fonts/): it sets the name in its own italic serif.
-    Shipping texgyrechorus-mediumitalic.otf with the guide, as the Pagella
-    faces are, makes the two the same; this is the one line to change (.ps-name).
+WHERE THEY DIFFER, ON PURPOSE:
+  * the NAME is the site's too: TeX Gyre Chorus, the face the site sets it in,
+    which travels with Parseh (lib/fonts/texgyrechorus-mediumitalic.otf, the
+    GUST Font License like Pagella and Heros) and is copied into the PUBLISHED
+    layout alone, beside the guide's other fonts (site.py, `_runtime`); the
+    rule that names it is FONT_FACE below, written with the page's own
+    relative address, and the guide fetches nothing from another folder of
+    the domain.
   * the bar SCROLLS AWAY, the site's sticks: the guide has a header of its
     own that sticks, and on a phone nothing of Parseh's is to stay fixed over
     the text.
   * the flag is a button that does nothing here, as on the site ("more
     languages later").
 
-WHAT IT FETCHES: nothing.  The letter is drawn in Noto Nastaliq Urdu, which
-the guide's stylesheet loads from the published site itself
-(site/_parseh/fonts/); the flag is inline; it works with scripts off.  The
+WHAT IT FETCHES: nothing from another host.  The letter is drawn in Noto
+Nastaliq Urdu, which the guide's stylesheet loads from the published site
+itself (site/_parseh/fonts/), and the name in Chorus, from the same folder; the
+flag is inline; it works with scripts off.  The
 few lines of script only keep one number up to date, how much of the bar is
 still in view, because three boxes of the guide's own chrome are sized to
 the window and must not run under it.
 """
 
 FRONT = "index.html"
+
+# the faces the bar names that the guide's own stylesheet does not: copied into
+# site/_parseh/fonts/ of the published layout, from lib/fonts/ (site.py)
+FONT_FILES = ("texgyrechorus-mediumitalic.otf",)
+# the site's own rule (assets/site.css), with the address of the file as the page
+# that carries it reaches it: `%s` is the way to site/_parseh/fonts/ ("../_parseh/fonts/")
+FONT_FACE = ("@font-face{font-family:'TeX Gyre Chorus';"
+             "src:url(%stexgyrechorus-mediumitalic.otf) format('opentype');font-display:swap}\n")
 
 # THE BAR'S RULES (the site's, with the guide's tokens).  The bar is above
 # the guide's header; the guide's chrome measures itself from --g-top, the
@@ -69,7 +78,7 @@ HEAD_CSS = """\
   display:inline-flex;align-items:center;justify-content:center;flex:none}
 /* a nastaliq line box is far taller than the letter: lift the ink to the middle */
 .ps-glyph i{font-style:normal;display:block;transform:translateY(-.62em)}
-.ps-name{font:italic 27px/1 var(--g-serif,Georgia,serif)}
+.ps-name{font-family:'TeX Gyre Chorus','Apple Chancery',cursive;font-size:27px;line-height:1}
 .ps-nav{display:flex;align-items:center;gap:2px;flex-wrap:nowrap;white-space:nowrap}
 .ps-nav a{color:inherit;text-decoration:none;font:550 15px/1.5 var(--g-sans,system-ui,sans-serif);
   padding:8px 12px;border-radius:999px}
@@ -125,10 +134,11 @@ def esc(s):
              .replace('"', "&quot;"))
 
 
-def head_css():
+def head_css(fonts):
     """What goes in <head>, after the guide's own stylesheet (the rules that
-    meet the guide's are written to win by coming last)."""
-    return '<style id="ps-bar-css">\n%s</style>\n' % HEAD_CSS
+    meet the guide's are written to win by coming last).  FONTS is the way from
+    the page to site/_parseh/fonts/, with its closing slash."""
+    return '<style id="ps-bar-css">\n%s%s</style>\n' % (FONT_FACE % fonts, HEAD_CSS)
 
 
 def bar(home, up):
@@ -141,10 +151,11 @@ def bar(home, up):
 def put_on_the_front_page(text, home):
     """The hand-written front page, with the bar on it: the rules before
     </head>, the bar before the guide's own header.  Refuses a page that is
-    not shaped as expected (a front page that changed must be looked at)."""
+    not shaped as expected (a front page that changed must be looked at).  The
+    front page stands above site/, so its fonts are at site/_parseh/fonts/."""
     for needle in ("</head>", '<header class="g-top">'):
         if text.count(needle) != 1:
             raise ValueError("html-guide/index.html has %d of %r, expected one: the bar "
                              "cannot be placed (engine/bar.py)" % (text.count(needle), needle))
-    return (text.replace("</head>", head_css() + "</head>")
+    return (text.replace("</head>", head_css("site/_parseh/fonts/") + "</head>")
                 .replace('<header class="g-top">', bar(home, "") + '<header class="g-top">'))

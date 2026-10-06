@@ -73,6 +73,10 @@ GUST_FONTS = (
      "\u00a9 B. Jackowski, J. M. Nowacki and the TeX users groups (GUST)",
      ("texgyreheros-regular.otf", "texgyreheros-bold.otf", "texgyreheros-italic.otf"),
      "https://www.gust.org.pl/projects/e-foundry/tex-gyre"),
+    ("TeX Gyre Chorus", "2.003",
+     "\u00a9 B. Jackowski, J. M. Nowacki and the TeX users groups (GUST)",
+     ("texgyrechorus-mediumitalic.otf",),
+     "https://www.gust.org.pl/projects/e-foundry/tex-gyre"),
 )
 # the licence files that travel beside the fonts, served from the same folder
 FONT_LICENCE_FILES = ("OFL.txt", "GUST-FONT-LICENSE.txt")
@@ -137,12 +141,14 @@ def carried():
             "SIL Open Font License 1.1 &mdash; " + licence_link("its text, and every font's notice",
                                                                "OFL-1.1")))
     out.append(work(
-        "TeX Gyre Pagella and TeX Gyre Heros",
+        "TeX Gyre Pagella, TeX Gyre Heros and TeX Gyre Chorus",
         "The fonts the studio&rsquo;s and the guide&rsquo;s pages are set in, in "
         "<code>lib/fonts/</code>: %s. They travel with Parseh, so a machine with no TeX "
         "installation still has them; the studio copies them into its own static folder "
         "when it starts, and the guide&rsquo;s build into its site, with their licence "
-        "beside them. From <a href=\"https://www.gust.org.pl/projects/e-foundry/tex-gyre\" "
+        "beside them. (Chorus sets the name Parseh in the bar of the guide published on "
+        "the web, and goes only into that layout.) From "
+        "<a href=\"https://www.gust.org.pl/projects/e-foundry/tex-gyre\" "
         "rel=\"noopener\" target=\"_blank\">gust.org.pl</a>."
         % ", ".join("<code>%s</code>" % esc(f) for fam in GUST_FONTS for f in fam[3]),
         "&copy; B. Jackowski, J. M. Nowacki and the TeX users groups (GUST)",

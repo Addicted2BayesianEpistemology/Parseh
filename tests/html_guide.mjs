@@ -1140,6 +1140,7 @@ serve.main()
         home: q('.ps-home').href, current: cur.textContent, guide: cur.href,
         others: [...bar.querySelectorAll('.ps-nav a:not([aria-current])')].map(a => a.textContent + ' ' + a.href),
         name: getComputedStyle(q('.ps-name')).display, font: [...document.fonts].some(f => f.family.includes('Nastaliq') && f.status === 'loaded'),
+        chorus: [...document.fonts].some(f => f.family.includes('Chorus') && f.status === 'loaded'),
         side: rect(q('.g-side')), seen: document.documentElement.style.getPropertyValue('--ps-bar-seen')};
     });
     // (the showcase embeds a YouTube video, which is its own business and not the bar's: a page with none)
@@ -1160,6 +1161,8 @@ serve.main()
              st.others.join('|') === `Examples ${WEB}examples/|Downloads ${WEB}downloads/`,
              `${here}: the logo leads to the website, Guide is where one is and leads to the guide's front page: ` + [st.home, st.guide, ...st.others].join(' '));
       assert((st.name === 'none') === phone && st.font, `${here}: the name is ${phone ? 'put away' : 'there'}, the letter's face is loaded`);
+      // the name is set in the website's own face, from the published folder (it is put away on a phone, and a face nothing draws is not loaded)
+      assert(phone || st.chorus, `${here}: the name is drawn in TeX Gyre Chorus, loaded from the published site`);
       assert(foreign.length === 0, `${here}: nothing was fetched from another host: ` + foreign.join(' '));
       if (scheme === 'dark') {
         assert(st.bg !== 'rgb(190, 52, 85)', `${here}: the dark theme's accent, not the light one's: ${st.bg}`);

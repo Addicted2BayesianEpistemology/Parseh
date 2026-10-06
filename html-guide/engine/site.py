@@ -764,7 +764,7 @@ class Site:
             "title": esc(title), "site": esc(self.title),
             "desc": ('<meta name="description" content="%s">\n' % esc(desc)) if desc else "",
             # the published layout's bar (engine/bar.py); nothing at all otherwise
-            "barcss": bar.head_css() if self.bar_home else "",
+            "barcss": bar.head_css(run + "fonts/") if self.bar_home else "",
             "bar": bar.bar(self.bar_home, up) if self.bar_home else "",
             "crumbs": ('<span class="g-crumbs">%s</span><span class="g-sep">›</span>' % esc(crumbs))
             if crumbs else "",
@@ -813,6 +813,13 @@ class Site:
             found = find_font(name)
             if found:
                 shutil.copyfile(found, run / "fonts" / name)
+        # the published layout's bar sets the name in a face the guide's own
+        # stylesheet does not name (engine/bar.py): only that layout carries it
+        if self.bar_home:
+            for name in bar.FONT_FILES:
+                found = find_font(name)
+                if found:
+                    shutil.copyfile(found, run / "fonts" / name)
         # a font travels with its licence: the OFL with the copyright lines of
         # the toolbox's own faces, the GUST licence of TeX Gyre, and the
         # README that says which font is under which (lib/fonts/)

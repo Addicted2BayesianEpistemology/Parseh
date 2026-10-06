@@ -20,6 +20,7 @@ of each family is the same font, compressed for the web.
 | `Vazirmatn-Regular.ttf`, `Vazirmatn-Bold.ttf`, `Vazirmatn.woff2` | Vazirmatn | 33.003 | © 2015 The Vazirmatn Project Authors | OFL 1.1 |
 | `texgyrepagella-regular.otf`, `texgyrepagella-bold.otf`, `texgyrepagella-italic.otf`, `texgyrepagella-bolditalic.otf` | TeX Gyre Pagella | 2.501 | © B. Jackowski, J. M. Nowacki and the TeX users groups (GUST) | GUST Font License |
 | `texgyreheros-regular.otf`, `texgyreheros-bold.otf`, `texgyreheros-italic.otf` | TeX Gyre Heros | 2.004 | © B. Jackowski, J. M. Nowacki and the TeX users groups (GUST) | GUST Font License |
+| `texgyrechorus-mediumitalic.otf` | TeX Gyre Chorus | 2.003 | © B. Jackowski, J. M. Nowacki and the TeX users groups (GUST) | GUST Font License |
 
 The Noto families come from the Noto project (https://notofonts.github.io),
 Vazirmatn from https://github.com/rastikerdar/vazirmatn.
@@ -38,6 +39,11 @@ whose text is here in [`GUST-FONT-LICENSE.txt`](GUST-FONT-LICENSE.txt) — the
 LaTeX Project Public License 1.3c or later, with a request to rename a
 modified font. Their copyright is not in `OFL.txt`: that file is the SIL
 licence's, and carries the notices of the faces under it alone.
+
+**TeX Gyre Chorus** (one face, medium italic) is the odd one out: it sets the name *Parseh*
+in the bar of the guide published at parseh.io/guide, as it does on the website, and
+it is copied only into that layout (`html-guide/engine/bar.py`), not into the guide an
+install carries, nor into the studio. Same authors, same licence.
 
 ## Adding a face
 
