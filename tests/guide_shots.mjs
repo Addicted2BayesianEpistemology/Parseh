@@ -66,7 +66,7 @@ const FILES = {
   // the hub
   'hub':               'getting-started/shots/hub.png',
   'hub-later':         'getting-started/shots/hub-later.png',            // the Review later door
-  'hub-foot':          'getting-started/shots/hub-foot.png',             // the foot: the addresses, the version, the two links
+  'hub-foot':          'getting-started/shots/hub-foot.png',             // the foot: the addresses, the version, the three links
   'modes-gif':         'getting-started/shots/modes.gif',                // a phone's hub: Mobile, the colours, Browser
   'dictionary-sheet':  'getting-started/shots/dictionary-sheet.png',     // a phone's dictionary sheet: a book and a video
   'later-hub':         'books/shots/later-hub.png',                      // the Review later page

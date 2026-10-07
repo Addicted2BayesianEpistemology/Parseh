@@ -1389,11 +1389,11 @@ def hub_page():
        # cannot open it (lib/settingspage.py)
        "reach": esc(settingspage.doors_said(network.settings())),
        "dicttags": dict_tags(), "nclips": clip_tags(),
-       # who made it: the two links, on the browser foot's last line and,
+       # who made it: the three links, on the browser foot's last line and,
        # each a finger's height, under the mobile hub's version -- GitHub is
-       # Parseh's own repository, the other link his website
-       "made": author.foot_links(project.GITHUB_URL, project.NAME),
-       "mby": author.foot_row(project.GITHUB_URL, project.NAME)}
+       # Parseh's own repository, then Parseh's website, then his
+       "made": author.foot_links(project.GITHUB_URL, project.NAME, project.WEBSITE_URL),
+       "mby": author.foot_row(project.GITHUB_URL, project.NAME, project.WEBSITE_URL)}
 
 
 def clip_tags():

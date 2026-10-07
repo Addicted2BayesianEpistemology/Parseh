@@ -85,7 +85,7 @@ that page alone, which ends with a link back to these Settings
 
 ## The foot
 
-![The foot of the hub: the addresses Parseh can be reached at, the version, and the two links, GitHub and imbrunoursino.net](shots/hub-foot.png){width=80 align=center}
+![The foot of the hub: the addresses Parseh can be reached at, the version, and the three links, GitHub, parseh.io and imbrunoursino.net](shots/hub-foot.png){width=80 align=center}
 
 At the bottom of the hub:
 
@@ -99,16 +99,17 @@ At the bottom of the hub:
   index — and that **the guide** has the rest;
 - which version of Parseh this is, and that it is free software, with a
   link to its **licences** ([Licences and credits](../reference/licences.md));
-- two links, **GitHub** and **imbrunoursino.net**: the first leads to
-  Parseh's own repository on GitHub, the second to the website of Bruno
-  Ursino, who made Parseh. They are only links: each opens in a tab of its
-  own when you click it, and nothing is fetched from either address before
-  that, so the foot looks the same with no connection.
+- three links, **GitHub**, **parseh.io** and **imbrunoursino.net**: the
+  first leads to Parseh's own repository on GitHub, the second to Parseh's
+  website, the third to the website of Bruno Ursino, who made Parseh. They
+  are only links: each opens in a tab of its own when you click it, and
+  nothing is fetched from any of the addresses before that, so the foot
+  looks the same with no connection.
 
 The mobile hub says the licence and the version on two lines at its very
-foot, the version on the second, and has the two links on a third.
+foot, the version on the second, and has the three links on a third.
 [What's new](../reference/whats-new.md) says what each version brought.
-**Settings** ends with the same two links, and so does every page of this
+**Settings** ends with the same three links, and so does every page of this
 guide.
 
 ## The theme

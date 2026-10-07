@@ -853,11 +853,11 @@ class TheSite(Tree):
         self.assertNotIn("__FOLD__", js, "the case fold is spliced in, as the studio's server does")
         self.assertTrue((run / "fonts" / "Vazirmatn-Regular.ttf").is_file())
 
-    def test_every_page_ends_with_the_foot_s_two_links(self):
+    def test_every_page_ends_with_the_foot_s_three_links(self):
         """The owner's signature (a0.4.1, lib/author.py): the foot of every
         page, on a line under the one that says where the page is written --
-        the two links and nothing else: GitHub, which is PARSEH's repository
-        (the owner, 2026-10-06), and his website."""
+        the three links and nothing else: GitHub, which is PARSEH's repository
+        (the owner, 2026-10-06), Parseh's website (a0.5.0) and his own."""
         import author
         import project
         pages = [p for p in sorted(self.site.rglob("*.html")) if 'class="g-foot"' in p.read_text(encoding="utf-8")]
@@ -868,11 +868,11 @@ class TheSite(Tree):
             text = p.read_text(encoding="utf-8")
             foot = re.findall(r'<footer class="g-foot">(.*?)</footer>', text, re.S)
             self.assertEqual(len(foot), 1, p)
-            self.assertTrue(foot[0].endswith("<br>" + author.foot_links(project.GITHUB_URL, project.NAME)), (p, foot[0]))
-            self.assertEqual(re.findall(r'href="(https?://[^"]*)"', foot[0]), [project.GITHUB_URL, author.SITE_URL], p)
+            self.assertTrue(foot[0].endswith("<br>" + author.foot_links(project.GITHUB_URL, project.NAME, project.WEBSITE_URL)), (p, foot[0]))
+            self.assertEqual(re.findall(r'href="(https?://[^"]*)"', foot[0]), [project.GITHUB_URL, project.WEBSITE_URL, author.SITE_URL], p)
             self.assertEqual(re.findall(r'aria-label="([^"]*)"', foot[0])[0], "Parseh on GitHub", p)
-            self.assertEqual(foot[0].count('rel="noopener noreferrer"'), 2, p)
-            self.assertEqual(foot[0].count('target="_blank"'), 2, p)
+            self.assertEqual(foot[0].count('rel="noopener noreferrer"'), 3, p)
+            self.assertEqual(foot[0].count('target="_blank"'), 3, p)
 
     def test_the_output_is_the_same_every_time(self):
         site2, _r, td2 = compile_tree(self.FILES)
@@ -1298,7 +1298,7 @@ class TheGuideItself(unittest.TestCase):
             self.assertTrue((Path(td) / "site" / "showcase.html").is_file())
             self.assertTrue((Path(td) / "site" / "images" / "flashcard.gif").is_file())
 
-    def test_the_front_page_ends_with_the_same_two_links(self):
+    def test_the_front_page_ends_with_the_same_three_links(self):
         """The front page is written by hand, not compiled, so its foot is
         the same markup by hand: it must be lib/author.py's, byte for byte --
         GitHub the project's repository, as on every compiled page."""
@@ -1307,8 +1307,8 @@ class TheGuideItself(unittest.TestCase):
         front = (GUIDE / "index.html").read_text(encoding="utf-8")
         foot = re.findall(r'<footer class="g-foot">(.*?)</footer>', front, re.S)
         self.assertEqual(len(foot), 1)
-        self.assertTrue(foot[0].endswith("<br>" + author.foot_links(project.GITHUB_URL, project.NAME)), foot[0])
-        self.assertEqual(re.findall(r'href="(https?://[^"]*)"', foot[0]), [project.GITHUB_URL, author.SITE_URL])
+        self.assertTrue(foot[0].endswith("<br>" + author.foot_links(project.GITHUB_URL, project.NAME, project.WEBSITE_URL)), foot[0])
+        self.assertEqual(re.findall(r'href="(https?://[^"]*)"', foot[0]), [project.GITHUB_URL, project.WEBSITE_URL, author.SITE_URL])
 
     def test_what_s_new_has_the_changelog_s_versions_in_its_order_and_days(self):
         """CHANGELOG.md is written for a release and "What's new" for a

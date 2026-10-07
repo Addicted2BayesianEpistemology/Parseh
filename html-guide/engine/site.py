@@ -776,7 +776,7 @@ class Site:
             "source": esc("html-guide/markdown/" + page.rel),
             # the foot's two links, as at the hub's foot (lib/author.py): GitHub is
             # Parseh's own repository (lib/project.py), the other the author's website
-            "made": author.foot_links(project.GITHUB_URL, project.NAME),
+            "made": author.foot_links(project.GITHUB_URL, project.NAME, project.WEBSITE_URL),
             "langjson": json.dumps(L.as_json(), ensure_ascii=False).replace("</", "<\\/"),
             "scripts": "\n".join(scripts),
         }

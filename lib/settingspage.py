@@ -894,13 +894,13 @@ reaches %(name)s</a>, in the guide.</p>
 
 
 def signed(main):
-    """`main` with the foot's two links (lib/author.py: GitHub, which is the
-    PROJECT's repository -- lib/project.py -- and the author's website) as a
+    """`main` with the foot's three links (lib/author.py: GitHub, which is the
+    PROJECT's repository -- lib/project.py -- its website, and the author's) as a
     foot line before its closing </main>, in the style every page of Settings
     gives its own `.foot`.  The hub's alone: the other pages' foots say where
     their things are kept."""
     end = main.rindex("</main>")
-    return main[:end] + '<p class="foot">%s</p>\n' % author.foot_links(project.GITHUB_URL, project.NAME) + main[end:]
+    return main[:end] + '<p class="foot">%s</p>\n' % author.foot_links(project.GITHUB_URL, project.NAME, project.WEBSITE_URL) + main[end:]
 
 
 def hub(reading_tags="", update_tags="", speech_tags="", llm_tags="", arasaac_tags=""):

@@ -7,10 +7,10 @@
 //   and 430, the others at 1280 and 390, each in the three themes) -- the
 //   pictures are for LOOKING at, the checks below are made on what was drawn
 //
-// The owner asked for his name and two links in a few places (TO-DO §15.17,
+// The owner asked for his name and two links in a few places (TO-DO §15.17; a FOOT has a third since a0.5.0, parseh.io, between them,
 // decided 2026-09-28): the foot of the hub, browser layout and phone hub; the
 // foot of the guide, every page and its hand-written front page; and a foot
-// line on the Settings hub -- only the two links, whose visible words are
+// line on the Settings hub -- only the links, whose visible words are
 // "GitHub" and "imbrunoursino.net" -- and, on /licences/, his name beside "the
 // author".  Links only: nothing is fetched from either address.
 // And, decided 2026-10-06: at a FOOT (the hub in both layouts, the Settings hub,
@@ -36,7 +36,7 @@
 //            AA in the three themes, no sideways scroll
 //   settings the Settings hub's foot line, and no other page of Settings has one
 //   licences the page names him beside "the author", with the two links
-//   guide    the front page's foot and a compiled page's foot: the same two
+//   guide    the front page's foot and a compiled page's foot: the same three
 //            links, AA in the three themes, a target a finger can hit; and
 //            the guide's own header, "Parseh guide", is not set in Chorus
 //   rtl      the hub has no interface language, so no right-to-left one to
@@ -71,9 +71,11 @@ async function run(args, opts = {}) {
 const GITHUB = 'https://github.com/Addicted2BayesianEpistemology';   // HIS profile: where his name stands (licences)
 const PROJECT = 'https://github.com/parseh-io/Parseh';                // PARSEH's repository: a foot's GitHub
 const SITE = 'https://imbrunoursino.net/';
-const HOSTS = /^https?:\/\/(?:[^/]*\.)?(?:github\.com|imbrunoursino\.net)(?:[:/]|$)/;
+const WEBSITE = 'https://parseh.io/';                                // PARSEH's website: a foot's middle link (a0.5.0)
+const HOSTS = /^https?:\/\/(?:[^/]*\.)?(?:github\.com|imbrunoursino\.net|parseh\.io)(?:[:/]|$)/;
 const SITE_LABEL = "imbrunoursino.net, Bruno Ursino's website";
-const LABELS = ['Parseh on GitHub', SITE_LABEL];                    // a foot's
+const WEBSITE_LABEL = "parseh.io, Parseh's website";
+const LABELS = ['Parseh on GitHub', WEBSITE_LABEL, SITE_LABEL];     // a foot's
 const PERSON_LABELS = ['Bruno Ursino on GitHub', SITE_LABEL];       // beside his name
 const THEMES = ['light', 'dark', 'sepia'];
 const PARTS = (Deno.env.get('SIGNATURE_PARTS') || 'hub,mobile,settings,licences,guide,rtl').split(',');
@@ -127,8 +129,9 @@ const measure = (page, scope, only = 'a') => page.evaluate(([sel, only]) => {
 // `person` makes it his profile (the author line, where his name stands)
 function checkFoot(m, where, {finger = 0, aa = true, person = false} = {}) {
   assert(!m.missing, `${where}: the foot is there (${m.missing || ''})`);
-  const first = person ? GITHUB : PROJECT;
-  eq(m.links.map(a => [a.href, a.text]), [[first, 'GitHub'], [SITE, 'imbrunoursino.net']], `${where}: two links, and the words they say`);
+  eq(m.links.map(a => [a.href, a.text]),
+     person ? [[GITHUB, 'GitHub'], [SITE, 'imbrunoursino.net']] : [[PROJECT, 'GitHub'], [WEBSITE, 'parseh.io'], [SITE, 'imbrunoursino.net']],
+     `${where}: ${person ? 'two' : 'three'} links, and the words they say`);
   for (const a of m.links) {
     eq([a.target, a.rel], ['_blank', 'noopener noreferrer'], `${where}: ${a.text} opens in a tab of its own, telling the site nothing`);
     assert(a.drawn && a.l >= 0 && a.r <= m.w, `${where}: ${a.text} is drawn, inside the window (${Math.round(a.l)}..${Math.round(a.r)} of ${m.w})`);
@@ -223,22 +226,23 @@ async function partHub(B) {
       await settle(page);
       const m = await measure(page, '.hub-browser .foot', 'a[href^="https://"]');
       checkFoot(m, `${vp.width}px ${theme}`);
-      // the foot's other lines are as they were, and the two links are what it ends with
-      assert(m.shown.includes('is free software, under the GNU GPL, version 3 or later;') && m.shown.endsWith('licences. GitHub · imbrunoursino.net'),
-             `${vp.width}px ${theme}: the foot says what it always said, and ends with the two words: ...${m.shown.slice(-60)}`);
-      assert(!/Bruno|Ursino/.test(m.shown), `${vp.width}px ${theme}: the foot shows no name, only the two links (the name is for a screen reader)`);
+      // the foot's other lines are as they were, and the three links are what it ends with
+      assert(m.shown.includes('is free software, under the GNU GPL, version 3 or later;') && m.shown.endsWith('licences. GitHub · parseh.io · imbrunoursino.net'),
+             `${vp.width}px ${theme}: the foot says what it always said, and ends with the three words: ...${m.shown.slice(-60)}`);
+      assert(!/Bruno|Ursino/.test(m.shown), `${vp.width}px ${theme}: the foot shows no name, only the three links (the name is for a screen reader)`);
       await page.locator('.hub-browser .foot').scrollIntoViewIfNeeded();
       await shot(page, `${tag}-${theme}`);
     }
     // the words a screen reader announces are the label, once, and only in the layout that is showing
-    eq([await page.getByRole('link', {name: LABELS[0]}).count(), await page.getByRole('link', {name: LABELS[1]}).count()], [1, 1],
-       `${tag}: a screen reader finds each link once, by the project's name and by his`);
+    eq([await page.getByRole('link', {name: LABELS[0]}).count(), await page.getByRole('link', {name: LABELS[1]}).count(), await page.getByRole('link', {name: LABELS[2]}).count()], [1, 1, 1],
+       `${tag}: a screen reader finds each link once, by the project's name, the project's website and his`);
     eq(await page.getByRole('link', {name: PERSON_LABELS[0]}).count(), 0, `${tag}: the hub has no link to his profile`);
     await page.evaluate(() => Parseh.theme.set('light'));
     // a load, and three themes looked at, with nothing clicked
     await sleep(600);
     noneAsked(ctx, tag + ' on load, and through three themes');
     await clicked(ctx, page, `.hub-browser .foot a[href="${PROJECT}"]`, PROJECT, tag + ' GitHub (the project)');
+    await clicked(ctx, page, `.hub-browser .foot a[href="${WEBSITE}"]`, WEBSITE, tag + ' website (the project)');
     await clicked(ctx, page, `.hub-browser .foot a[href="${SITE}"]`, SITE, tag + ' site');
     // hover: the title is the hover, and a mouse gets the pointer's own cursor
     if (!vp.touch) eq(await page.evaluate(() => getComputedStyle(document.querySelector('.hub-browser .foot a')).cursor), 'pointer', `${tag}: a mouse gets a hand`);
@@ -263,9 +267,11 @@ async function partMobile(B) {
       const m = await measure(page, '.hub-mobile .m-by');
       checkFoot(m, `${w}px ${theme}`, {finger: 48});
       assert(m.links.every(a => a.size <= 13.5), `${w}px ${theme}: small text (${m.links.map(a => a.size)}px)`);
-      const [a, b] = m.links;
-      assert(a.r <= b.l + 0.5 || b.r <= a.l + 0.5 || a.b <= b.t || b.b <= a.t, `${w}px ${theme}: the two links do not overlap`);
-      eq(m.shown, 'GitHub · imbrunoursino.net', `${w}px ${theme}: the line says the two words and the dot between them, nothing else`);
+      for (const [i, j] of [[0, 1], [1, 2], [0, 2]]) {
+        const a = m.links[i], b = m.links[j];
+        assert(a.r <= b.l + 0.5 || b.r <= a.l + 0.5 || a.b <= b.t || b.b <= a.t, `${w}px ${theme}: links ${i + 1} and ${j + 1} do not overlap`);
+      }
+      eq(m.shown, 'GitHub · parseh.io · imbrunoursino.net', `${w}px ${theme}: the line says the three words and the dots between them, nothing else`);
       // it is the last thing on the hub, under the version
       const order = await page.evaluate(() => {
         const q = s => document.querySelector(s).getBoundingClientRect();
@@ -277,7 +283,7 @@ async function partMobile(B) {
         await shot(page, `${tag}-${theme}`);
       }
     }
-    // laid out in one row where there is room: how many rows the two links lie in
+    // laid out in one row where there is room: how many rows the three links lie in
     await page.evaluate(() => Parseh.theme.set('light'));
     const rows = (await measure(page, '.hub-mobile .m-by')).links.map(a => Math.round((a.t + a.b) / 2));
     console.log(`  (${w}px: the links lie in ${new Set(rows).size} row${new Set(rows).size === 1 ? '' : 's'})`);
@@ -287,9 +293,10 @@ async function partMobile(B) {
     await sleep(500);
     noneAsked(ctx, tag + ' on load, and through three themes');
     if (w === 390) {
-      eq([await page.getByRole('link', {name: LABELS[0]}).count(), await page.getByRole('link', {name: LABELS[1]}).count()], [1, 1],
+      eq([await page.getByRole('link', {name: LABELS[0]}).count(), await page.getByRole('link', {name: LABELS[1]}).count(), await page.getByRole('link', {name: LABELS[2]}).count()], [1, 1, 1],
          `${tag}: a screen reader finds each link once`);
       await clicked(ctx, page, `.hub-mobile .m-by a[href="${PROJECT}"]`, PROJECT, tag + ' GitHub (the project)');
+      await clicked(ctx, page, `.hub-mobile .m-by a[href="${WEBSITE}"]`, WEBSITE, tag + ' website (the project)');
       await clicked(ctx, page, `.hub-mobile .m-by a[href="${SITE}"]`, SITE, tag + ' site');
     }
     await ctx.close();
@@ -325,7 +332,7 @@ async function partSettings(B) {
       await settle(page);
       const m = await measure(page, '.settings > p.foot');
       checkFoot(m, `${vp.width}px ${theme}`);
-      eq(m.shown, 'GitHub · imbrunoursino.net', `${vp.width}px ${theme}: the line says the two words and nothing else`);
+      eq(m.shown, 'GitHub · parseh.io · imbrunoursino.net', `${vp.width}px ${theme}: the line says the three words and nothing else`);
       // the last thing on the page, below the doors
       const below = await page.evaluate(() => document.querySelector('.settings > p.foot').getBoundingClientRect().top >=
                                               document.querySelector('.settings .doors').getBoundingClientRect().bottom);
@@ -335,6 +342,7 @@ async function partSettings(B) {
     }
     await page.evaluate(() => Parseh.theme.set('light'));
     noneAsked(ctx, tag + ' on load');
+    await clicked(ctx, page, `.settings > p.foot a[href="${WEBSITE}"]`, WEBSITE, tag + ' website (the project)');
     await clicked(ctx, page, `.settings > p.foot a[href="${SITE}"]`, SITE, tag + ' site');
     await ctx.close();
   }
@@ -409,7 +417,7 @@ async function partGuide() {
           const m = await measure(page, 'footer.g-foot');
           // a finger can hit a link of the guide's foot: padded to a target of 24px at least (WCAG 2.5.8)
           checkFoot(m, `${name} ${vp.width}px ${theme}`, {finger: 24});
-          assert(m.shown.endsWith('GitHub · imbrunoursino.net'), `${name} ${vp.width}px ${theme}: the foot ends with the two words: ...${m.shown.slice(-70)}`);
+          assert(m.shown.endsWith('GitHub · parseh.io · imbrunoursino.net'), `${name} ${vp.width}px ${theme}: the foot ends with the three words: ...${m.shown.slice(-70)}`);
           await page.locator('footer.g-foot').scrollIntoViewIfNeeded();
           await shot(page, `${tag}-${theme}`);
         }
@@ -450,7 +458,7 @@ async function partRtl(B) {
     m = await measure(page, '.hub-mobile .m-by');
     checkFoot(m, `${vp.width}px phone hub line, rtl`, {finger: 48});
     // the links swap sides: GitHub, first in the document, is on the right
-    assert(m.links[0].l > m.links[1].l, `${vp.width}px: in a right-to-left page GitHub is on the right of the website (${Math.round(m.links[0].l)} > ${Math.round(m.links[1].l)})`);
+    assert(m.links[0].l > m.links[1].l && m.links[1].l > m.links[2].l, `${vp.width}px: in a right-to-left page GitHub is on the right, then parseh.io, then his website (${m.links.map(a => Math.round(a.l))})`);
     await shot(page, `rtl-hub-mobile-${vp.width}`);
     await ctx.close();
   }

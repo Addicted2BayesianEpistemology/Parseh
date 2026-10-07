@@ -6,9 +6,10 @@ THE OWNER ASKED FOR THESE (TO-DO §15.17, 2026-09-25; the places were decided
 with him on 2026-09-28): his name and links to his GitHub and to his website,
 in a few places and no more --
 
-  * two links, and only the two, at the foot of the hub (the browser layout
+  * three links, and only the three, at the foot of the hub (the browser layout
     and the mobile one), of the guide (every page, and its front page, which
-    is written by hand) and of the Settings hub: the FOOT;
+    is written by hand) and of the Settings hub: the FOOT -- GitHub, Parseh's
+    website (parseh.io, since a0.5.0) and his own;
   * his name beside "the author", and the same two links, on the Licences
     page (lib/notices.py) and in the README's License section, where the
     copyright line is "Copyright (c) 2026 Bruno Ursino": the AUTHOR LINE.
@@ -21,7 +22,8 @@ is handed (lib/project.py's GITHUB_URL, which this file may not import) --
 and a screen reader and a hover say "Parseh on GitHub"; beside his name, on
 the Licences page, in About and in the README, it leads to his own profile
 (GITHUB_URL below) and says "Bruno Ursino on GitHub".  The foot is made by
-foot_links() and foot_row(), the author line by links() and notice().
+foot_links() and foot_row(), the author line by links() and notice() (two
+links: his profile and his site).
 
 NEVER in what a person makes or keeps: a book's reader, a document, a deck, a
 card, a printed page, an exported page.  tests/test_author.py holds that.
@@ -36,10 +38,11 @@ STANDARD LIBRARY ONLY, AND NO OTHER PARSEH MODULE: the guide's compiler
 (html-guide/engine) imports this file and must run with nothing else, and a
 guide exported with `build.py --export` carries a copy of it in
 engine/vendor/ (html-guide/engine/manifest.py MODULE_FILES), and of
-lib/project.py, which is where the compiler reads the address it hands to
+lib/project.py, which is where the compiler reads the addresses it hands to
 foot_links().
 """
 import html
+from urllib.parse import urlparse
 
 NAME = "Bruno Ursino"
 
@@ -93,6 +96,15 @@ def project_link(url, name):
     return link(url, GITHUB_TEXT, name + " on " + GITHUB_TEXT)
 
 
+def website_link(url, name):
+    """PARSEH'S WEBSITE, the foot's middle link: it shows the address's host
+    (parseh.io), and a screen reader and a hover say whose it is -- handed in
+    like the repository's, for the same reason (lib/project.py's WEBSITE_URL and
+    NAME)."""
+    text = urlparse(url).netloc
+    return link(url, text, "%s, %s's website" % (text, name))
+
+
 def site_link():
     return link(SITE_URL, SITE_TEXT, SITE_LABEL)
 
@@ -103,18 +115,22 @@ def links():
     return github_link() + SEP + site_link()
 
 
-def foot_links(project_url, project_name):
-    """A FOOT's two links, side by side -- the whole of its signature:
-    GitHub · imbrunoursino.net, the first the project's repository (the hub's
-    browser layout, the Settings hub, every page of the guide and its front page)."""
-    return project_link(project_url, project_name) + SEP + site_link()
+def foot_links(project_url, project_name, website_url):
+    """A FOOT's three links, side by side -- the whole of its signature:
+    GitHub · parseh.io · imbrunoursino.net, the first the project's repository,
+    the second its website (the hub's browser layout, the Settings hub, every
+    page of the guide and its front page)."""
+    return (project_link(project_url, project_name) + SEP + website_link(website_url, project_name)
+            + SEP + site_link())
 
 
-def foot_row(project_url, project_name):
-    """A foot's two links as the items of a flex row, the dot between them an item
-    of its own and hidden from a screen reader, which reads two links and no
-    punctuation: the mobile hub's last line."""
-    return project_link(project_url, project_name) + '<span aria-hidden="true">&middot;</span>' + site_link()
+def foot_row(project_url, project_name, website_url):
+    """A foot's three links as the items of a flex row, the dots between them
+    items of their own and hidden from a screen reader, which reads three links
+    and no punctuation: the mobile hub's last line."""
+    dot = '<span aria-hidden="true">&middot;</span>'
+    return (project_link(project_url, project_name) + dot + website_link(website_url, project_name)
+            + dot + site_link())
 
 
 def copyright_line():

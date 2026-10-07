@@ -9,7 +9,7 @@
 ### Changed
 - Plainer names on the page's own buttons: keep going (now remembered, and following you), between repeats, hide bars, highlight, keep in view, keep video, beside the text, kana only, pinyin only
 - One colour control on every page: the studio's sheet has no theme menu of its own
-- The GitHub link at the foot of the hub, Settings and the guide leads to Parseh's repository
+- The foot of the hub, Settings and the guide: GitHub leads to Parseh's repository, and parseh.io is a link of its own beside it
 - The name Parseh is set in TeX Gyre Chorus in the bars and on the hub's title
 
 ### Fixed

@@ -50,9 +50,11 @@ NAME = "Bruno Ursino"
 GITHUB = "https://github.com/Addicted2BayesianEpistemology"      # HIS profile: the author line's
 PROJECT = "https://github.com/parseh-io/Parseh"                  # PARSEH's repository: a foot's
 SITE = "https://imbrunoursino.net/"
+WEBSITE = "https://parseh.io/"                                   # PARSEH's website: a foot's middle link (a0.5.0)
 PROJECT_LABEL = "Parseh on GitHub"
 PERSON_LABEL = "Bruno Ursino on GitHub"
 SITE_LABEL = "imbrunoursino.net, Bruno Ursino's website"
+WEBSITE_LABEL = "parseh.io, Parseh's website"
 
 
 class Visible(HTMLParser):
@@ -151,17 +153,18 @@ class TheModule(unittest.TestCase):
         want = ('<a href="%s" target="_blank" rel="noopener noreferrer" aria-label="%s" title="%s">GitHub</a>'
                 % (PROJECT, PROJECT_LABEL, PROJECT_LABEL))
         self.assertEqual(author.project_link(project.GITHUB_URL, project.NAME), want)
-        foot = author.foot_links(project.GITHUB_URL, project.NAME)
-        self.assertEqual(foot, want + author.SEP + author.site_link())
-        two = read(foot).links
-        self.assertEqual([(a["href"], a["text"]) for a in two], [(PROJECT, "GitHub"), (SITE, "imbrunoursino.net")])
-        for a in two:
+        web = author.website_link(project.WEBSITE_URL, project.NAME)
+        foot = author.foot_links(project.GITHUB_URL, project.NAME, project.WEBSITE_URL)
+        self.assertEqual(foot, want + author.SEP + web + author.SEP + author.site_link())
+        three = read(foot).links
+        self.assertEqual([(a["href"], a["text"]) for a in three], [(PROJECT, "GitHub"), (WEBSITE, "parseh.io"), (SITE, "imbrunoursino.net")])
+        for a in three:
             self.assertEqual((a["target"], a["rel"]), ("_blank", "noopener noreferrer"))
             self.assertEqual(a["aria-label"], a["title"])
-        self.assertEqual([a["title"] for a in two], [PROJECT_LABEL, SITE_LABEL])
-        # what a foot SHOWS is what the author line shows: the label names whose address it is, the words do not
-        self.assertEqual("".join(read(foot).text), "GitHub · imbrunoursino.net")
-        self.assertEqual("".join(read(foot).text), "".join(read(author.links()).text))
+        self.assertEqual([a["title"] for a in three], [PROJECT_LABEL, WEBSITE_LABEL, SITE_LABEL])
+        # what a foot SHOWS is the author line's two words with the website's between them: the label names whose address it is, the words do not
+        self.assertEqual("".join(read(foot).text), "GitHub · parseh.io · imbrunoursino.net")
+        self.assertEqual("".join(read(author.links()).text), "GitHub · imbrunoursino.net")
         self.assertNotIn(GITHUB, foot)
         self.assertNotIn(PERSON_LABEL, foot)
         # the label says the project's name as it was handed it, and still CONTAINS the words the link shows
@@ -169,12 +172,15 @@ class TheModule(unittest.TestCase):
         self.assertEqual((other["href"], other["aria-label"], other["title"]),
                          ("https://example.test/x", "Thing on GitHub", "Thing on GitHub"))
         self.assertIn(author.GITHUB_TEXT, other["aria-label"])
+        site = read(author.website_link("https://example.test/y", "Thing")).links[0]
+        self.assertEqual((site["href"], site["text"], site["aria-label"]), ("https://example.test/y", "example.test", "example.test, Thing's website"))
 
-    def test_a_foot_s_row_is_the_same_two_links_with_the_dot_an_item_of_its_own(self):
-        row = author.foot_row(project.GITHUB_URL, project.NAME)
-        self.assertEqual(row, author.project_link(project.GITHUB_URL, project.NAME)
-                         + '<span aria-hidden="true">&middot;</span>' + author.site_link())
-        self.assertEqual([a["href"] for a in read(row).links], [PROJECT, SITE])
+    def test_a_foot_s_row_is_the_same_three_links_with_the_dots_items_of_their_own(self):
+        row = author.foot_row(project.GITHUB_URL, project.NAME, project.WEBSITE_URL)
+        dot = '<span aria-hidden="true">&middot;</span>'
+        self.assertEqual(row, author.project_link(project.GITHUB_URL, project.NAME) + dot
+                         + author.website_link(project.WEBSITE_URL, project.NAME) + dot + author.site_link())
+        self.assertEqual([a["href"] for a in read(row).links], [PROJECT, WEBSITE, SITE])
 
     def test_a_link_fetches_nothing(self):
         # a link is followed when it is clicked: no picture, icon, script, sheet
@@ -182,10 +188,10 @@ class TheModule(unittest.TestCase):
         for tag in ("<img", "<script", "<link", "<iframe", "<svg", "src=", "srcset=", "url(", "@import"):
             self.assertNotIn(tag, author.links())
         self.assertEqual(len(re.findall(r"<a ", author.links())), 2)
-        foot = author.foot_links(project.GITHUB_URL, project.NAME)
+        foot = author.foot_links(project.GITHUB_URL, project.NAME, project.WEBSITE_URL)
         for tag in ("<img", "<script", "<link", "<iframe", "<svg", "src=", "srcset=", "url(", "@import"):
             self.assertNotIn(tag, foot)
-        self.assertEqual(len(re.findall(r"<a ", foot)), 2)
+        self.assertEqual(len(re.findall(r"<a ", foot)), 3)
 
     def test_what_is_written_into_a_link_is_escaped(self):
         self.assertEqual(author.link('https://x.test/?a=1&b="2"', "<b>", "it's"),
@@ -219,7 +225,8 @@ class TheModule(unittest.TestCase):
                 "import engine.site as s; a = s.author; p = s.project; "
                 "print(a.__file__.replace(chr(92), '/').rsplit('/', 2)[-2:], p.__file__.replace(chr(92), '/').rsplit('/', 2)[-2:], "
                 "a.NAME, a.links() == a.github_link() + a.SEP + a.site_link(), "
-                "a.foot_links(p.GITHUB_URL, p.NAME) == a.project_link(p.GITHUB_URL, p.NAME) + a.SEP + a.site_link())")
+                "a.foot_links(p.GITHUB_URL, p.NAME, p.WEBSITE_URL) == a.project_link(p.GITHUB_URL, p.NAME) + a.SEP + "
+                "a.website_link(p.WEBSITE_URL, p.NAME) + a.SEP + a.site_link())")
         r = subprocess.run([sys.executable, "-I", "-S", "-c", code, str(ROOT / "html-guide")],
                            capture_output=True, text=True, cwd=str(ROOT))
         self.assertEqual(r.returncode, 0, r.stderr)
@@ -247,34 +254,45 @@ class TheFoots(unittest.TestCase):
         self.assertEqual([a["title"] for a in links], [first[1], SITE_LABEL], where)
         return read(fragment)
 
-    def test_the_browser_hub_s_foot_says_the_two_words_and_nothing_of_the_name(self):
+    def check_foot(self, fragment, where):
+        """The three links of a FOOT: Parseh's repository, Parseh's website, his."""
+        links = external(fragment)
+        self.assertEqual([(a["href"], a["text"]) for a in links],
+                         [(PROJECT, "GitHub"), (WEBSITE, "parseh.io"), (SITE, "imbrunoursino.net")], where)
+        for a in links:
+            self.assertEqual((a["target"], a["rel"]), ("_blank", "noopener noreferrer"), where)
+        self.assertEqual([a["aria-label"] for a in links], [PROJECT_LABEL, WEBSITE_LABEL, SITE_LABEL], where)
+        self.assertEqual([a["title"] for a in links], [PROJECT_LABEL, WEBSITE_LABEL, SITE_LABEL], where)
+        return read(fragment)
+
+    def test_the_browser_hub_s_foot_says_the_three_words_and_nothing_of_the_name(self):
         browser, _ = hub_html()
         foot = browser[browser.index('<div class="foot">'):]
-        parsed = self.check_two(foot, "hub foot")
+        parsed = self.check_foot(foot, "hub foot")
         shown = "".join(parsed.text)
         self.assertNotIn("Bruno", shown)
         self.assertNotIn("Ursino", shown)
-        self.assertTrue(shown.rstrip().endswith("GitHub · imbrunoursino.net"), shown[-80:])
-        # the foot's other items stay as they were, and the two links come last
+        self.assertTrue(shown.rstrip().endswith("GitHub · parseh.io · imbrunoursino.net"), shown[-80:])
+        # the foot's other items stay as they were, and the three links come last
         self.assertLess(foot.index('<a href="/licences/">licences</a>'), foot.index(PROJECT))
         # and the person's own profile is not what the foot's GitHub leads to
         self.assertNotIn(GITHUB, browser)
 
-    def test_the_mobile_hub_s_last_line_is_the_two_links_and_nothing_else(self):
+    def test_the_mobile_hub_s_last_line_is_the_three_links_and_nothing_else(self):
         _, mobile = hub_html()
         line = re.search(r'<p class="m-by">(.*?)</p>', mobile, re.S).group(1)
-        parsed = self.check_two(line, "mobile hub")
-        self.assertEqual("".join(parsed.text), "GitHub\u00b7imbrunoursino.net")
-        self.assertIn('<span aria-hidden="true">&middot;</span>', line)
+        parsed = self.check_foot(line, "mobile hub")
+        self.assertEqual("".join(parsed.text), "GitHub\u00b7parseh.io\u00b7imbrunoursino.net")
+        self.assertEqual(line.count('<span aria-hidden="true">&middot;</span>'), 2)
         # after the version, and the last thing in the hub
         self.assertLess(mobile.index('<p class="m-ver">'), mobile.index('<p class="m-by">'))
         self.assertEqual(mobile.count('<p class="m-by">'), 1)
         rest = mobile[mobile.index('<p class="m-by">'):]
-        self.assertEqual(len(re.findall(r"<a ", rest)), 2, "nothing after it but the two links")
+        self.assertEqual(len(re.findall(r"<a ", rest)), 3, "nothing after it but the three links")
         # and not under the class a phone's tests keep the browser's words out of
         self.assertNotIn('class="m-by foot"', mobile)
-        # every link the mobile hub has to another site is these two
-        self.assertEqual([a["href"] for a in external(mobile)], [PROJECT, SITE])
+        # every link the mobile hub has to another site is these three
+        self.assertEqual([a["href"] for a in external(mobile)], [PROJECT, WEBSITE, SITE])
         self.assertNotIn(GITHUB, mobile)
 
     def test_the_hub_names_him_nowhere_in_words_but_a_screen_reader_reads_it(self):
@@ -295,14 +313,14 @@ class TheFoots(unittest.TestCase):
         self.assertIn("color:var(--faint)", line)
         self.assertIn("min-height:48px", link)
 
-    def test_the_settings_hub_ends_with_the_two_links_and_the_frame_adds_none(self):
+    def test_the_settings_hub_ends_with_the_three_links_and_the_frame_adds_none(self):
         import settingspage
         page = settingspage.hub()
         main = page[page.index('<main class="settings">'):page.index("</main>")]
         self.assertEqual(main.count('<p class="foot">'), 1)
         foot = re.search(r'<p class="foot">(.*?)</p>', main, re.S).group(1)
-        self.assertEqual(foot, author.foot_links(project.GITHUB_URL, project.NAME))
-        self.check_two(foot, "settings hub")
+        self.assertEqual(foot, author.foot_links(project.GITHUB_URL, project.NAME, project.WEBSITE_URL))
+        self.check_foot(foot, "settings hub")
         self.assertTrue(main.rstrip().endswith("</p>"), "the foot is the last thing in the page")
         self.assertEqual(page.count('href="%s"' % PROJECT), 1)
         self.assertEqual(page.count(GITHUB), 0, "his profile is not at the Settings hub's foot")

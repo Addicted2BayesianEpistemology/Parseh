@@ -183,12 +183,12 @@ class TheReadersRead(unittest.TestCase):
         import settingspage
         page = settingspage.hub()
         foot = re.search(r'<p class="foot">(.*?)</p>', page[page.index('<main class="settings">'):], re.S).group(1)
-        self.assertEqual(re.findall(r'href="(https?://[^"]*)"', foot), [project.GITHUB_URL, author.SITE_URL])
+        self.assertEqual(re.findall(r'href="(https?://[^"]*)"', foot), [project.GITHUB_URL, project.WEBSITE_URL, author.SITE_URL])
         self.assertIn('aria-label="%s on GitHub"' % project.NAME, foot)
         self.assertNotIn(author.GITHUB_URL, page)
         front = (ROOT / "html-guide" / "index.html").read_text(encoding="utf-8")
         guide_foot = re.search(r'<footer class="g-foot">(.*?)</footer>', front, re.S).group(1)
-        self.assertEqual(re.findall(r'href="(https?://[^"]*)"', guide_foot), [project.GITHUB_URL, author.SITE_URL])
+        self.assertEqual(re.findall(r'href="(https?://[^"]*)"', guide_foot), [project.GITHUB_URL, project.WEBSITE_URL, author.SITE_URL])
         # and the author line, where his name stands, is his profile
         self.assertEqual(re.findall(r'href="(https?://[^"]*)"', author.links()), [author.GITHUB_URL, author.SITE_URL])
 

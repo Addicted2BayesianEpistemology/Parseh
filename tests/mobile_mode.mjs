@@ -294,10 +294,10 @@ const MOBILE_CLICKABLE = page => page.evaluate(() => ['a:/', 'button:browser', '
   ...([...document.querySelectorAll('.px-ask')].filter(e => e.getClientRects().length).length ? ['button:explain'] : []),
   ...[...document.querySelectorAll('.m-langs .chip')].map(c => 'button:' + c.getAttribute('data-pick')),
   'a:/books/', 'a:/youtube/', 'a:/studio/', 'a:/exercises/', 'a:/later/', 'a:/guide/', 'a:/m/install/', 'a:/licences/',
-  // the foot's two links (lib/author.py), the last line of the hub, the only
-  // ones that leave Parseh: Parseh's own repository and the author's website;
-  // tests/signature.mjs drives what they do
-  'a:https://github.com/parseh-io/Parseh', 'a:https://imbrunoursino.net/']);
+  // the foot's three links (lib/author.py), the last line of the hub, the only
+  // ones that leave Parseh: Parseh's own repository, Parseh's website and the
+  // author's website; tests/signature.mjs drives what they do
+  'a:https://github.com/parseh-io/Parseh', 'a:https://parseh.io/', 'a:https://imbrunoursino.net/']);
 
 // the temporary toolbox: the tree hub_inbox.mjs boots, plus a note in every
 // language and the book library page
@@ -644,7 +644,7 @@ async function partHub() {
         const out = [];
         const texts = document.querySelectorAll('.hub-mobile .m-dname, .hub-mobile .m-dwhat, .hub-mobile .m-dfa, .hub-mobile .tag, .hub-mobile .chip .native, ' +
           '.hub-mobile .chip .n, .hub-mobile .chip[data-pick=all], .m-brand .fa, .m-brand .lat, .m-tagline, .m-bar .home, .m-bar button, ' +
-          // the author's two links, under the version: --dim, since --faint is not AA (lib/mobile.css)
+          // the foot's three links, under the version: --dim, since --faint is not AA (lib/mobile.css)
           '.hub-mobile .m-by a');
         for (const el of texts) {
           if (!el.getClientRects().length) continue;
