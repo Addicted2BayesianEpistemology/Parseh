@@ -1,4 +1,4 @@
-## [a0.5.0] - unreleased
+## [a0.5.0] - 2026-10-07
 ### Added
 - ⚙ page: one panel of settings on a book, a video, a document and its editor and an exercise deck, on a computer and on a phone
 - Page zoom, 70 to 200 %, for all of Parseh, also in the installed app
